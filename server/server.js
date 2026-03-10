@@ -54,7 +54,7 @@ const clientBuildPath = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientBuildPath));
 
 // Catch-all: serve React app for any non-API route (client-side routing)
-app.get('*', (req, res) => {
+app.get('/{*path}', (req, res) => {
   const indexPath = path.join(clientBuildPath, 'index.html');
   const fs = require('fs');
   if (fs.existsSync(indexPath)) {

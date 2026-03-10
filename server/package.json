@@ -1,0 +1,30 @@
+{
+  "name": "quantumshield-server",
+  "version": "1.0.0",
+  "description": "QuantumShield Scanner - Backend API for Quantum-Proof Cryptographic Assessment",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "quantum",
+    "pqc",
+    "tls",
+    "scanner",
+    "cbom"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.3.1",
+    "helmet": "^8.1.0",
+    "json2csv": "^6.0.0-alpha.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.2.4",
+    "node-forge": "^1.3.3"
+  }
+}

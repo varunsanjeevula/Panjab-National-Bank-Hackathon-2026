@@ -9,6 +9,10 @@ node_modules/
 # Build output
 dist/
 build/
+client/dist/
+
+# Root lock file (not needed, each subdir has its own)
+/package-lock.json
 
 # Logs
 *.log

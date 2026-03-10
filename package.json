@@ -1,5 +1,16 @@
 {
-  "dependencies": {
-    "mongodb": "^7.1.0"
+  "name": "quantumshield-scanner",
+  "version": "1.0.0",
+  "description": "QuantumShield - Post-Quantum Cryptography Readiness Scanner",
+  "scripts": {
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "build:client": "cd client && npm run build",
+    "start": "cd server && node server.js",
+    "build": "npm run install:all && npm run build:client",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

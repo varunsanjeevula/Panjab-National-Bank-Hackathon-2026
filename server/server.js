@@ -70,14 +70,16 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// ── Start Server ──────────────────────────────────────────
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`\n════════════════════════════════════════════════════`);
-  console.log(`  QuantumShield Scanner API`);
-  console.log(`  Running on: http://localhost:${PORT}`);
-  console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`════════════════════════════════════════════════════\n`);
-});
+// ── Start Server (skip in Vercel serverless) ──────────────
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`\n════════════════════════════════════════════════════`);
+    console.log(`  QuantumShield Scanner API`);
+    console.log(`  Running on: http://localhost:${PORT}`);
+    console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`════════════════════════════════════════════════════\n`);
+  });
+}
 
 module.exports = app;

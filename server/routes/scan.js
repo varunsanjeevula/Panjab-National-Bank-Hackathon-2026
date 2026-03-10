@@ -64,16 +64,27 @@ router.post('/', protect, authorize('admin', 'analyst'), async (req, res) => {
       ipAddress: req.ip
     });
 
-    // Return immediately with scan ID — scanning happens asynchronously
-    res.status(201).json({
-      scanId: scan._id,
-      status: 'running',
-      targets: normalizedTargets.length,
-      message: 'Scan initiated. Use GET /api/scan/:id to check progress.'
-    });
-
-    // ── Run scan in background ────────────────────────────
-    runScanInBackground(scan, normalizedTargets, req.user);
+    // On Vercel (serverless), run scan synchronously before responding
+    // because the function terminates after the response is sent
+    if (process.env.VERCEL) {
+      await runScanInBackground(scan, normalizedTargets, req.user);
+      const updatedScan = await Scan.findById(scan._id);
+      res.status(201).json({
+        scanId: scan._id,
+        status: updatedScan.status,
+        targets: normalizedTargets.length,
+        message: 'Scan completed.'
+      });
+    } else {
+      // Return immediately — scanning happens asynchronously
+      res.status(201).json({
+        scanId: scan._id,
+        status: 'running',
+        targets: normalizedTargets.length,
+        message: 'Scan initiated. Use GET /api/scan/:id to check progress.'
+      });
+      runScanInBackground(scan, normalizedTargets, req.user);
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

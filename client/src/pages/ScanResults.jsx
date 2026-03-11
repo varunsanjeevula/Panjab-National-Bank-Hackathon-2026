@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getScan, exportJSON, exportCSV } from '../services/api';
+import { getScan, exportJSON, exportCSV, exportPDF } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, ShieldCheck, ShieldAlert, ShieldX, Download, FileJson, FileSpreadsheet, RefreshCw, ExternalLink, CheckCircle, Clock, XCircle, Globe } from 'lucide-react';
+import { Shield, ShieldCheck, ShieldAlert, ShieldX, FileJson, FileSpreadsheet, ExternalLink, CheckCircle, Clock, Globe, Filter, Search, FileDown } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 function QuantumBadge({ label }) {
   if (!label) return <span className="badge">Unknown</span>;
@@ -19,6 +20,14 @@ function getScoreColor(score) {
   return '#dc2626';
 }
 
+const LABEL_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'safe', label: 'PQC Ready' },
+  { key: 'hybrid', label: 'Hybrid' },
+  { key: 'vulnerable', label: 'Not Ready' },
+  { key: 'critical', label: 'Critical' },
+];
+
 export default function ScanResults() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -26,6 +35,9 @@ export default function ScanResults() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [elapsed, setElapsed] = useState(0);
+  const [labelFilter, setLabelFilter] = useState('all');
+  const [tlsFilter, setTlsFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const loadScan = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -43,7 +55,6 @@ export default function ScanResults() {
     return () => clearInterval(interval);
   }, [loadScan]);
 
-  // Timer for running scans
   useEffect(() => {
     const isRunning = scan?.scan?.status === 'running' || scan?.scan?.status === 'pending';
     if (!isRunning) return;
@@ -51,15 +62,35 @@ export default function ScanResults() {
     return () => clearInterval(timer);
   }, [scan?.scan?.status]);
 
+  const filteredRecords = useMemo(() => {
+    return records.filter(rec => {
+      const label = rec.quantumAssessment?.label || '';
+      if (labelFilter === 'safe' && !label.includes('Fully Quantum Safe')) return false;
+      if (labelFilter === 'hybrid' && !label.includes('Hybrid')) return false;
+      if (labelFilter === 'vulnerable' && label !== 'Not PQC Ready') return false;
+      if (labelFilter === 'critical' && !label.includes('Critical')) return false;
+      if (tlsFilter !== 'all' && rec.tlsVersions?.bestVersion !== tlsFilter) return false;
+      if (searchTerm && !rec.host.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+      return true;
+    });
+  }, [records, labelFilter, tlsFilter, searchTerm]);
+
+  const tlsVersions = useMemo(() => {
+    const versions = new Set(records.map(r => r.tlsVersions?.bestVersion).filter(Boolean));
+    return ['all', ...versions];
+  }, [records]);
+
   const handleExport = async (type) => {
     try {
-      const res = type === 'json' ? await exportJSON(id) : await exportCSV(id);
-      const blob = new Blob([type === 'json' ? JSON.stringify(res.data, null, 2) : res.data]);
+      toast.loading(`Exporting ${type.toUpperCase()}...`, { id: 'export' });
+      const res = type === 'json' ? await exportJSON(id) : type === 'csv' ? await exportCSV(id) : await exportPDF(id);
+      const blob = new Blob([res.data]);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `cbom_${id}.${type}`;
+      a.download = `cbom_${id}.${type === 'pdf' ? 'pdf' : type}`;
       a.click();
-    } catch (err) { console.error(err); }
+      toast.success(`${type.toUpperCase()} exported!`, { id: 'export' });
+    } catch { toast.error('Export failed', { id: 'export' }); }
   };
 
   if (loading) return <div className="loading-container"><div className="spinner spinner-lg" /><p>Loading scan results...</p></div>;
@@ -81,10 +112,10 @@ export default function ScanResults() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-secondary btn-sm" onClick={() => handleExport('json')}><FileJson size={14} /> JSON</button>
           <button className="btn btn-secondary btn-sm" onClick={() => handleExport('csv')}><FileSpreadsheet size={14} /> CSV</button>
+          <button className="btn btn-primary btn-sm" onClick={() => handleExport('pdf')}><FileDown size={14} /> PDF</button>
         </div>
       </div>
 
-      {/* Progress Section */}
       <AnimatePresence>
         {isRunning && (
           <motion.div className="card" style={{ marginBottom: 20 }} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }}>
@@ -123,7 +154,6 @@ export default function ScanResults() {
         )}
       </AnimatePresence>
 
-      {/* Summary Stats */}
       {scanData?.summary && !isRunning && (
         <div className="stats-grid">
           {[
@@ -139,15 +169,40 @@ export default function ScanResults() {
         </div>
       )}
 
-      {/* Results Table */}
+      {records.length > 0 && !isRunning && (
+        <motion.div className="card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <Filter size={16} style={{ color: 'var(--text-muted)' }} />
+          <div style={{ display: 'flex', gap: 6 }}>
+            {LABEL_FILTERS.map(f => (
+              <button key={f.key} className={`btn btn-sm ${labelFilter === f.key ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setLabelFilter(f.key)} style={{ fontSize: 12 }}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <select className="input" value={tlsFilter} onChange={e => setTlsFilter(e.target.value)}
+            style={{ width: 'auto', padding: '4px 10px', fontSize: 12 }}>
+            <option value="all">All TLS</option>
+            {tlsVersions.filter(v => v !== 'all').map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+          <div style={{ marginLeft: 'auto', position: 'relative' }}>
+            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input className="input" placeholder="Search host..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+              style={{ paddingLeft: 30, width: 180, fontSize: 12 }} />
+          </div>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{filteredRecords.length}/{records.length} shown</span>
+        </motion.div>
+      )}
+
       <motion.div className="card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
         <div className="card-title" style={{ marginBottom: 16 }}>CBOM Inventory</div>
-        {records.length > 0 ? (
+        {filteredRecords.length > 0 ? (
           <div className="table-container">
             <table>
               <thead><tr><th>Endpoint</th><th>TLS</th><th>Key Algorithm</th><th>Score</th><th>Quantum Label</th><th>Fixes</th><th></th></tr></thead>
               <tbody>
-                {records.map((rec, i) => (
+                {filteredRecords.map((rec, i) => (
                   <motion.tr key={rec._id} className="clickable-row" onClick={() => navigate(`/asset/${rec._id}`)}
                     initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
                     <td>
@@ -172,7 +227,7 @@ export default function ScanResults() {
         ) : (
           <div className="empty-state">
             <Shield size={44} />
-            <p>{isRunning ? 'Results will appear as targets are scanned...' : 'No results found'}</p>
+            <p>{isRunning ? 'Results will appear as targets are scanned...' : records.length > 0 ? 'No results match your filters' : 'No results found'}</p>
           </div>
         )}
       </motion.div>

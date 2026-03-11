@@ -207,11 +207,60 @@ async function runScanInBackground(scan, targets, user) {
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    const scans = await Scan.find({ initiatedBy: req.user._id })
+    const filter = req.user.role === 'admin' ? {} : { initiatedBy: req.user._id };
+    const scans = await Scan.find(filter)
       .sort({ createdAt: -1 })
       .limit(50)
       .populate('initiatedBy', 'username');
     res.json(scans);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// @route   GET /api/scan/compare/:id1/:id2
+// @desc    Compare two scans side by side
+// @access  Private
+router.get('/compare/:id1/:id2', protect, async (req, res) => {
+  try {
+    const [scan1, scan2] = await Promise.all([
+      Scan.findById(req.params.id1).lean(),
+      Scan.findById(req.params.id2).lean()
+    ]);
+    if (!scan1 || !scan2) return res.status(404).json({ error: 'One or both scans not found' });
+
+    const [records1, records2] = await Promise.all([
+      CbomRecord.find({ scanId: req.params.id1 }).lean(),
+      CbomRecord.find({ scanId: req.params.id2 }).lean()
+    ]);
+
+    // Build comparison by host
+    const allHosts = new Set([...records1.map(r => r.host), ...records2.map(r => r.host)]);
+    const comparison = [];
+    for (const host of allHosts) {
+      const r1 = records1.find(r => r.host === host);
+      const r2 = records2.find(r => r.host === host);
+      comparison.push({
+        host,
+        scan1: r1 ? {
+          score: r1.quantumAssessment?.score?.score ?? null,
+          label: r1.quantumAssessment?.label || null,
+          cipherCount: r1.cipherSuites?.length || 0,
+          tlsBest: r1.tlsVersions?.bestVersion || null,
+        } : null,
+        scan2: r2 ? {
+          score: r2.quantumAssessment?.score?.score ?? null,
+          label: r2.quantumAssessment?.label || null,
+          cipherCount: r2.cipherSuites?.length || 0,
+          tlsBest: r2.tlsVersions?.bestVersion || null,
+        } : null,
+        scoreDelta: (r1 && r2) ? (r2.quantumAssessment?.score?.score ?? 0) - (r1.quantumAssessment?.score?.score ?? 0) : null,
+        isNew: !r1 && !!r2,
+        isRemoved: !!r1 && !r2,
+      });
+    }
+
+    res.json({ scan1, scan2, comparison });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -237,3 +286,4 @@ router.get('/:id', protect, async (req, res) => {
 });
 
 module.exports = router;
+

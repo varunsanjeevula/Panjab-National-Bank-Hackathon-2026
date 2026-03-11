@@ -52,10 +52,39 @@ export const getCbomRecord = (id) => API.get(`/cbom/record/${id}`);
 export const getCbomStats = () => API.get('/cbom/stats/overview');
 
 // ── Reports ─────────────────────────────────────────────
+export const getReportsList = () => API.get('/reports/list');
+
 export const exportJSON = (scanId) =>
   API.get(`/reports/${scanId}/json`, { responseType: 'blob' });
 
 export const exportCSV = (scanId) =>
   API.get(`/reports/${scanId}/csv`, { responseType: 'blob' });
 
+export const exportPDF = (scanId) =>
+  API.get(`/reports/${scanId}/pdf`, { responseType: 'blob' });
+
+export const downloadLabel = (cbomId) =>
+  API.get(`/reports/label/${cbomId}`, { responseType: 'blob' });
+
+// ── Admin ───────────────────────────────────────────────
+export const getUsers = () => API.get('/admin/users');
+export const createUser = (data) => API.post('/admin/users', data);
+export const updateUser = (id, data) => API.put(`/admin/users/${id}`, data);
+export const deleteUser = (id) => API.delete(`/admin/users/${id}`);
+export const getAuditLogs = (params = {}) => API.get('/admin/audit-logs', { params });
+
+// ── Scan History ────────────────────────────────────────
+export const compareScan = (id1, id2) => API.get(`/scan/compare/${id1}/${id2}`);
+
+// ── Scheduled Scans ─────────────────────────────────────
+export const getSchedules = () => API.get('/schedules');
+export const createSchedule = (data) => API.post('/schedules', data);
+export const updateSchedule = (id, data) => API.put(`/schedules/${id}`, data);
+export const deleteSchedule = (id) => API.delete(`/schedules/${id}`);
+export const triggerSchedule = (id) => API.post(`/schedules/${id}/run`);
+
+// ── VPN Scan ────────────────────────────────────────────
+export const scanVPN = (host) => API.post('/vpn-scan', { host });
+
 export default API;
+

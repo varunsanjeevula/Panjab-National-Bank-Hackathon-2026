@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getCbomRecord } from '../services/api';
+import { getCbomRecord, downloadLabel } from '../services/api';
 import { motion } from 'framer-motion';
-import { Shield, ShieldCheck, ShieldAlert, ShieldX, Lock, Key, FileText, ArrowLeft, Globe, Fingerprint, AlertTriangle, CheckCircle2, ExternalLink, Copy, Check, Terminal, Hash } from 'lucide-react';
+import { Shield, ShieldCheck, ShieldAlert, ShieldX, Lock, Key, FileText, ArrowLeft, Globe, Fingerprint, AlertTriangle, CheckCircle2, ExternalLink, Copy, Check, Terminal, Hash, Award, Download } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 function QuantumBadge({ label }) {
   if (!label) return <span className="badge">Unknown</span>;
@@ -82,9 +83,25 @@ export default function AssetDetail() {
             ))}
           </div>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowVerification(!showVerification)}>
-          <Shield size={14} /> {showVerification ? 'Hide' : 'Verify'} Proof
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexDirection: 'column' }}>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowVerification(!showVerification)}>
+            <Shield size={14} /> {showVerification ? 'Hide' : 'Verify'} Proof
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={async () => {
+            try {
+              toast.loading('Generating label...', { id: 'label' });
+              const res = await downloadLabel(id);
+              const blob = new Blob([res.data], { type: 'application/pdf' });
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url; a.download = `pqc_label_${record.host}.pdf`; a.click();
+              window.URL.revokeObjectURL(url);
+              toast.success('Label downloaded!', { id: 'label' });
+            } catch { toast.error('Failed to download label', { id: 'label' }); }
+          }}>
+            <Award size={14} /> PQC Label
+          </button>
+        </div>
       </motion.div>
 
       {/* ═══ INTEGRITY VERIFICATION PANEL ═══ */}

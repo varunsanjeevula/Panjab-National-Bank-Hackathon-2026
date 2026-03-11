@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const dotenv = require('dotenv');
 const path = require('path');
 const connectDB = require('./config/db');
+const { initScheduler } = require('./utils/scheduler');
 
 // Load env vars
 dotenv.config();
@@ -38,6 +39,22 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/scan', require('./routes/scan'));
 app.use('/api/cbom', require('./routes/cbom'));
 app.use('/api/reports', require('./routes/reports'));
+app.use('/api/admin', require('./routes/admin'));
+app.use('/api/schedules', require('./routes/schedule'));
+
+// VPN Scan endpoint
+const { protect } = require('./middleware/auth');
+const { scanVPNEndpoints } = require('../scanner/vpnProbe');
+app.post('/api/vpn-scan', protect, async (req, res) => {
+  try {
+    const { host } = req.body;
+    if (!host) return res.status(400).json({ error: 'Host is required' });
+    const result = await scanVPNEndpoints(host);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -79,6 +96,7 @@ if (!process.env.VERCEL) {
     console.log(`  Running on: http://localhost:${PORT}`);
     console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`════════════════════════════════════════════════════\n`);
+    initScheduler();
   });
 }
 

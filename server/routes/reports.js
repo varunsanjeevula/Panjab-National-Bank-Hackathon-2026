@@ -1,9 +1,56 @@
 const express = require('express');
 const { protect } = require('../middleware/auth');
 const CbomRecord = require('../models/CbomRecord');
+const Scan = require('../models/Scan');
 const AuditLog = require('../models/AuditLog');
+const { generateCBOMReport, generatePQCLabel } = require('../utils/pdfGenerator');
 
 const router = express.Router();
+
+// @route   GET /api/reports/list
+// @desc    List all scans for the reports page
+// @access  Private
+router.get('/list', protect, async (req, res) => {
+  try {
+    const scans = await Scan.find()
+      .sort({ createdAt: -1 })
+      .populate('initiatedBy', 'username')
+      .lean();
+
+    // Attach record count and summary stats per scan
+    const enriched = await Promise.all(scans.map(async (scan) => {
+      const records = await CbomRecord.find({ scanId: scan._id }).lean();
+      const completed = records.filter(r => r.status === 'completed');
+      const pqcReady = completed.filter(r => (r.quantumAssessment?.label || '').includes('Fully Quantum Safe')).length;
+      const hybrid = completed.filter(r => (r.quantumAssessment?.label || '').includes('Hybrid')).length;
+      const notReady = completed.length - pqcReady - hybrid;
+      const avgScore = completed.length > 0
+        ? Math.round(completed.reduce((sum, r) => sum + (r.quantumAssessment?.score?.score || 0), 0) / completed.length)
+        : 0;
+
+      return {
+        _id: scan._id,
+        status: scan.status,
+        targets: scan.targets,
+        targetCount: scan.targets?.length || 0,
+        completedCount: completed.length,
+        failedCount: records.filter(r => r.status === 'error').length,
+        pqcReady,
+        hybrid,
+        notReady,
+        avgScore,
+        initiatedBy: scan.initiatedBy?.username || 'Unknown',
+        startedAt: scan.startedAt,
+        completedAt: scan.completedAt,
+        createdAt: scan.createdAt,
+      };
+    }));
+
+    res.json(enriched);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // @route   GET /api/reports/:scanId/json
 // @desc    Export CBOM as JSON
@@ -48,7 +95,6 @@ router.get('/:scanId/csv', protect, async (req, res) => {
       return res.status(404).json({ error: 'No records found' });
     }
 
-    // Flatten CBOM data for CSV
     const csvRows = records.map(r => ({
       host: r.host,
       port: r.port,
@@ -71,7 +117,6 @@ router.get('/:scanId/csv', protect, async (req, res) => {
       scanDuration: r.scanDuration || ''
     }));
 
-    // Generate CSV
     const headers = Object.keys(csvRows[0]);
     const csvContent = [
       headers.join(','),
@@ -94,6 +139,60 @@ router.get('/:scanId/csv', protect, async (req, res) => {
     res.send(csvContent);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// @route   GET /api/reports/:scanId/pdf
+// @desc    Export full CBOM report as PDF
+// @access  Private
+router.get('/:scanId/pdf', protect, async (req, res) => {
+  try {
+    const scan = await Scan.findById(req.params.scanId).lean();
+    if (!scan) return res.status(404).json({ error: 'Scan not found' });
+
+    const records = await CbomRecord.find({ scanId: req.params.scanId, status: 'completed' }).lean();
+    if (!records.length) return res.status(404).json({ error: 'No completed records found' });
+
+    await AuditLog.create({
+      userId: req.user._id,
+      username: req.user.username,
+      action: 'REPORT_EXPORTED',
+      details: { scanId: req.params.scanId, format: 'PDF' },
+      ipAddress: req.ip
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=cbom_report_${req.params.scanId}.pdf`);
+    generateCBOMReport(scan, records, res);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// @route   GET /api/reports/label/:cbomId
+// @desc    Download PQC digital label/certificate for an asset
+// @access  Private
+router.get('/label/:cbomId', protect, async (req, res) => {
+  try {
+    const record = await CbomRecord.findById(req.params.cbomId).lean();
+    if (!record) return res.status(404).json({ error: 'Record not found' });
+
+    await AuditLog.create({
+      userId: req.user._id,
+      username: req.user.username,
+      action: 'LABEL_DOWNLOADED',
+      details: { cbomId: req.params.cbomId, host: record.host },
+      ipAddress: req.ip
+    }).catch(() => {}); // Don't fail if audit log fails
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=pqc_label_${record.host}.pdf`);
+    generatePQCLabel(record, res);
+  } catch (err) {
+    console.error('Label generation error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    }
   }
 });
 

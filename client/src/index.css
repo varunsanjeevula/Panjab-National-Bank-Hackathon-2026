@@ -1177,3 +1177,174 @@ tr:last-child td {
   animation: pulse-ring 1.5s ease-in-out infinite;
   pointer-events: none;
 }
+
+/* ── Responsive Design ─────────────────────────────────── */
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .main-content {
+    padding: 24px 20px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .page-title {
+    font-size: 22px;
+  }
+
+  .stat-card-value {
+    font-size: 24px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .app-layout {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: auto;
+    width: 100%;
+    height: auto;
+    padding: 12px 16px;
+    flex-direction: row;
+    align-items: center;
+    z-index: 200;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border-light);
+   box-shadow: var(--shadow-md);
+  }
+
+  .sidebar-logo {
+    margin-bottom: 0;
+    padding: 4px 8px;
+    flex-shrink: 0;
+  }
+
+  .sidebar-logo-text {
+    display: none;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    gap: 4px;
+    overflow-x: auto;
+    flex: unset;
+  }
+
+  .sidebar-link {
+    padding: 8px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    gap: 6px;
+  }
+
+  .sidebar-link svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .main-content {
+    margin-left: 0;
+    margin-top: 60px;
+    padding: 16px 14px;
+  }
+
+  .page-header {
+    flex-direction: column !important;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .page-title {
+    font-size: 20px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 14px;
+  }
+
+  .stat-card-value {
+    font-size: 20px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .table-container {
+    margin: 0 -16px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  th, td {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .login-card {
+    margin: 16px;
+    padding: 28px 20px;
+  }
+
+  .login-logo h1 {
+    font-size: 20px;
+  }
+
+  /* Bottom user section hidden on mobile nav */
+  .sidebar > div:last-child {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  .btn-sm {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+}
+
+/* Small mobile */
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .page-title {
+    font-size: 18px;
+  }
+
+  .stat-card-value {
+    font-size: 22px;
+  }
+
+  .scan-steps {
+    gap: 8px;
+  }
+
+  .scan-step {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}

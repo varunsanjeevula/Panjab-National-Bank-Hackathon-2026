@@ -6,6 +6,8 @@ const dotenv = require('dotenv');
 const path = require('path');
 const connectDB = require('./config/db');
 const { initScheduler } = require('./utils/scheduler');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
 
 // Load env vars
 dotenv.config();
@@ -55,6 +57,12 @@ app.post('/api/vpn-scan', protect, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Swagger API Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'QuantumShield API Docs'
+}));
 
 // Health check
 app.get('/api/health', (req, res) => {

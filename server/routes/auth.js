@@ -3,13 +3,14 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const { protect } = require('../middleware/auth');
+const { enforcePasswordPolicy } = require('../middleware/passwordPolicy');
 
 const router = express.Router();
 
 // @route   POST /api/auth/register
 // @desc    Register a new user
 // @access  Public
-router.post('/register', async (req, res) => {
+router.post('/register', enforcePasswordPolicy, async (req, res) => {
   try {
     const { username, email, password, role } = req.body;
 

@@ -3,7 +3,7 @@ const http = require('http');
 const data = JSON.stringify({
   username: 'testuser',
   email: 'test@test.com',
-  password: 'test1234'
+  password: 'TestUser@1234'
 });
 
 const options = {

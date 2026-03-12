@@ -40,7 +40,8 @@ export const getMe = () => API.get('/auth/me');
 export const startScan = (targets, config = {}) =>
   API.post('/scan', { targets, config });
 
-export const getScans = () => API.get('/scan');
+export const getScans = (page = 1, limit = 50) =>
+  API.get('/scan', { params: { page, limit } });
 
 export const getScan = (id) => API.get(`/scan/${id}`);
 

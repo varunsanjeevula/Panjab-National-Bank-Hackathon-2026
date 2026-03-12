@@ -21,7 +21,7 @@ export default function Dashboard() {
         getScans(),
         getCbomStats().catch(() => ({ data: { totalAssets: 0, labelDistribution: {}, averageScore: 0 } }))
       ]);
-      setScans(scansRes.data);
+      setScans(scansRes.data.scans || scansRes.data);
       setStats(statsRes.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }

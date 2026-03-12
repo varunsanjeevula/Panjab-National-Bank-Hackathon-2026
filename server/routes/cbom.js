@@ -1,6 +1,7 @@
 const express = require('express');
 const { protect } = require('../middleware/auth');
 const CbomRecord = require('../models/CbomRecord');
+const Scan = require('../models/Scan');
 
 const router = express.Router();
 
@@ -9,6 +10,13 @@ const router = express.Router();
 // @access  Private
 router.get('/:scanId', protect, async (req, res) => {
   try {
+    const scan = await Scan.findById(req.params.scanId).lean();
+    if (!scan) return res.status(404).json({ error: 'Scan not found' });
+
+    if (req.user.role !== 'admin' && scan.initiatedBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Not authorized to view this scan' });
+    }
+
     const records = await CbomRecord.find({ scanId: req.params.scanId });
     if (!records.length) {
       return res.status(404).json({ error: 'No CBOM records found for this scan' });
@@ -28,6 +36,15 @@ router.get('/record/:id', protect, async (req, res) => {
     if (!record) {
       return res.status(404).json({ error: 'CBOM record not found' });
     }
+
+    // Verify ownership via parent scan
+    if (req.user.role !== 'admin') {
+      const scan = await Scan.findById(record.scanId).lean();
+      if (!scan || scan.initiatedBy.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ error: 'Not authorized to view this record' });
+      }
+    }
+
     res.json(record);
   } catch (err) {
     res.status(500).json({ error: err.message });

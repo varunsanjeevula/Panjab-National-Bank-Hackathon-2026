@@ -16,7 +16,7 @@ export default function ScanHistory() {
     (async () => {
       try {
         const { data } = await getScans();
-        setScans(data);
+        setScans(data.scans || data);
       } catch { toast.error('Failed to load scans'); }
       finally { setLoading(false); }
     })();

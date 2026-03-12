@@ -5,30 +5,10 @@ const CbomRecord = require('../models/CbomRecord');
 const AuditLog = require('../models/AuditLog');
 const { scanEndpoint } = require('../../scanner');
 const crypto = require('crypto');
+const { getNextRun } = require('./cronUtils');
 
 // Store active cron jobs
 const activeJobs = new Map();
-
-/**
- * Calculate next run date from cron expression
- */
-function getNextRun(cronExpr) {
-  const now = new Date();
-  // Simple approximation — use cron-parser in production
-  const parts = cronExpr.split(' ');
-  const next = new Date(now);
-  next.setSeconds(0);
-  next.setMilliseconds(0);
-
-  if (parts[1] !== '*') next.setHours(parseInt(parts[1]));
-  if (parts[0] !== '*') next.setMinutes(parseInt(parts[0]));
-
-  // Move to next occurrence
-  if (next <= now) {
-    next.setDate(next.getDate() + 1);
-  }
-  return next;
-}
 
 /**
  * Execute a scheduled scan

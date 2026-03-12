@@ -6,6 +6,7 @@ const Scan = require('../models/Scan');
 const CbomRecord = require('../models/CbomRecord');
 const AuditLog = require('../models/AuditLog');
 const { scanEndpoint } = require('../../scanner');
+const { isValidCidr, expandCidr } = require('../../scanner/networkUtils');
 
 const router = express.Router();
 
@@ -20,8 +21,9 @@ router.post('/', protect, authorize('admin', 'analyst'), async (req, res) => {
       return res.status(400).json({ error: 'Please provide at least one target' });
     }
 
-    // Normalize targets — strip protocol, paths, trailing slashes
-    const normalizedTargets = targets.map(t => {
+    // Normalize targets — strip protocol, paths, trailing slashes and handle CIDR
+    const normalizedTargets = [];
+    for (const t of targets) {
       let host, port = 443;
       if (typeof t === 'string') {
         host = t.trim();
@@ -29,7 +31,20 @@ router.post('/', protect, authorize('admin', 'analyst'), async (req, res) => {
         host = t.host?.trim();
         port = t.port || 443;
       }
-      if (!host) return null;
+      if (!host) continue;
+
+      // Handle CIDR Subnet logic
+      if (isValidCidr(host)) {
+        try {
+          const ips = expandCidr(host);
+          for (const ip of ips) {
+            normalizedTargets.push({ host: ip, port });
+          }
+        } catch (e) {
+          return res.status(400).json({ error: `Invalid CIDR: ${e.message}` });
+        }
+        continue;
+      }
 
       // Strip protocol (https://, http://)
       host = host.replace(/^https?:\/\//i, '');
@@ -42,15 +57,30 @@ router.post('/', protect, authorize('admin', 'analyst'), async (req, res) => {
         port = parseInt(parts[1]) || 443;
       }
 
-      return { host, port };
-    }).filter(t => t && t.host);
+      normalizedTargets.push({ host, port });
+    }
+    
+    // Deduplicate normalizedTargets
+    const seen = new Set();
+    const uniqueNormalizedTargets = [];
+    for (const t of normalizedTargets) {
+      const key = `${t.host}:${t.port}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueNormalizedTargets.push(t);
+      }
+    }
+
+    if (uniqueNormalizedTargets.length === 0) {
+      return res.status(400).json({ error: 'Please provide at least one valid target' });
+    }
 
     // Create scan record
     const scan = await Scan.create({
       initiatedBy: req.user._id,
-      targets: normalizedTargets,
+      targets: uniqueNormalizedTargets,
       status: 'running',
-      progress: { completed: 0, total: normalizedTargets.length, failed: 0 },
+      progress: { completed: 0, total: uniqueNormalizedTargets.length, failed: 0 },
       config: config || {},
       startedAt: new Date()
     });
@@ -60,19 +90,19 @@ router.post('/', protect, authorize('admin', 'analyst'), async (req, res) => {
       userId: req.user._id,
       username: req.user.username,
       action: 'SCAN_INITIATED',
-      details: { scanId: scan._id, targetCount: normalizedTargets.length, targets: normalizedTargets.map(t => t.host) },
+      details: { scanId: scan._id, targetCount: uniqueNormalizedTargets.length, targets: uniqueNormalizedTargets.slice(0, 100).map(t => t.host) }, // Cap audit log targets to 100
       ipAddress: req.ip
     });
 
     // On Vercel (serverless), run scan synchronously before responding
     // because the function terminates after the response is sent
     if (process.env.VERCEL) {
-      await runScanInBackground(scan, normalizedTargets, req.user);
+      await runScanInBackground(scan, uniqueNormalizedTargets, req.user);
       const updatedScan = await Scan.findById(scan._id);
       res.status(201).json({
         scanId: scan._id,
         status: updatedScan.status,
-        targets: normalizedTargets.length,
+        targets: uniqueNormalizedTargets.length,
         message: 'Scan completed.'
       });
     } else {
@@ -80,10 +110,10 @@ router.post('/', protect, authorize('admin', 'analyst'), async (req, res) => {
       res.status(201).json({
         scanId: scan._id,
         status: 'running',
-        targets: normalizedTargets.length,
+        targets: uniqueNormalizedTargets.length,
         message: 'Scan initiated. Use GET /api/scan/:id to check progress.'
       });
-      runScanInBackground(scan, normalizedTargets, req.user);
+      runScanInBackground(scan, uniqueNormalizedTargets, req.user);
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -100,7 +130,7 @@ async function runScanInBackground(scan, targets, user) {
 
   for (const target of targets) {
     try {
-      const result = await scanEndpoint(target.host, target.port);
+      const result = await scanEndpoint(target.host, target.port, scan.config);
 
       // Save CBOM record to DB
       const cbomRecord = await CbomRecord.create({
@@ -115,6 +145,7 @@ async function runScanInBackground(scan, targets, user) {
         certificateChain: result.certificateChain,
         cipherSuites: result.cipherSuites,
         ephemeralKeyInfo: result.ephemeralKeyInfo,
+        cleartextServices: result.cleartextServices,
         quantumAssessment: result.quantumAssessment,
         recommendations: result.recommendations,
         executiveSummary: result.executiveSummary,
@@ -208,11 +239,28 @@ async function runScanInBackground(scan, targets, user) {
 router.get('/', protect, async (req, res) => {
   try {
     const filter = req.user.role === 'admin' ? {} : { initiatedBy: req.user._id };
-    const scans = await Scan.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .populate('initiatedBy', 'username');
-    res.json(scans);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+    const skip = (page - 1) * limit;
+
+    const [scans, total] = await Promise.all([
+      Scan.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('initiatedBy', 'username'),
+      Scan.countDocuments(filter)
+    ]);
+
+    res.json({
+      scans,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -228,6 +276,14 @@ router.get('/compare/:id1/:id2', protect, async (req, res) => {
       Scan.findById(req.params.id2).lean()
     ]);
     if (!scan1 || !scan2) return res.status(404).json({ error: 'One or both scans not found' });
+
+    // Non-admin users can only compare their own scans
+    if (req.user.role !== 'admin') {
+      const userId = req.user._id.toString();
+      if (scan1.initiatedBy.toString() !== userId || scan2.initiatedBy.toString() !== userId) {
+        return res.status(403).json({ error: 'Not authorized to compare these scans' });
+      }
+    }
 
     const [records1, records2] = await Promise.all([
       CbomRecord.find({ scanId: req.params.id1 }).lean(),
@@ -274,6 +330,11 @@ router.get('/:id', protect, async (req, res) => {
     const scan = await Scan.findById(req.params.id).populate('initiatedBy', 'username');
     if (!scan) {
       return res.status(404).json({ error: 'Scan not found' });
+    }
+
+    // Non-admin users can only access their own scans
+    if (req.user.role !== 'admin' && scan.initiatedBy._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Not authorized to view this scan' });
     }
 
     // Get CBOM records

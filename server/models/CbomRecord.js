@@ -9,7 +9,7 @@ const cbomRecordSchema = new mongoose.Schema({
   // Target info
   host: { type: String, required: true },
   port: { type: Number, default: 443 },
-  status: { type: String, enum: ['completed', 'failed'], default: 'completed' },
+  status: { type: String, enum: ['completed', 'failed', 'error'], default: 'completed' },
   error: String,
   scanDuration: Number,
 
@@ -54,6 +54,9 @@ const cbomRecordSchema = new mongoose.Schema({
 
   // Ephemeral Key
   ephemeralKeyInfo: mongoose.Schema.Types.Mixed,
+
+  // Cleartext Services
+  cleartextServices: [mongoose.Schema.Types.Mixed],
 
   // Quantum Assessment
   quantumAssessment: {

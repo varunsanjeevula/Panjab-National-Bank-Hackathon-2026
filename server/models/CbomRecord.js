@@ -55,6 +55,9 @@ const cbomRecordSchema = new mongoose.Schema({
   // Ephemeral Key
   ephemeralKeyInfo: mongoose.Schema.Types.Mixed,
 
+  // Cleartext Services
+  cleartextServices: [mongoose.Schema.Types.Mixed],
+
   // Quantum Assessment
   quantumAssessment: {
     label: String,

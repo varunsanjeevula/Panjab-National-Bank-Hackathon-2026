@@ -8,6 +8,7 @@
 
 const { probeTLS, detectSupportedVersions, enumerateCipherSuites } = require('./tlsProbe');
 const { generateCBOM } = require('./cbomGenerator');
+const { probeCleartextProtocols } = require('./cleartextProbe');
 
 /**
  * Scan a single endpoint and generate a complete CBOM.
@@ -21,7 +22,8 @@ async function scanEndpoint(host, port = 443, options = {}) {
   const {
     timeout = 10000,
     enumerateCiphers = true,
-    detectVersions = true
+    detectVersions = true,
+    enableCleartextScan = false
   } = options;
 
   const scanStartTime = Date.now();
@@ -85,7 +87,23 @@ async function scanEndpoint(host, port = 443, options = {}) {
     }
   }
 
-  // ── Step 4: Generate CBOM ───────────────────────────────
+  // ── Step 4: Cleartext Protocol Scanning ─────────────────
+  let cleartextServices = [];
+  if (enableCleartextScan) {
+    try {
+      console.log(`  [4/4] Probing for cleartext protocols...`);
+      cleartextServices = await probeCleartextProtocols(host, 2000);
+    } catch (err) {
+      console.warn(`  [4/4] ⚠ Cleartext probing failed: ${err.message}`);
+      errors.push({ phase: 'Cleartext Probing', error: err.message });
+    }
+  }
+  
+  if (primaryScan) {
+    primaryScan.cleartextServices = cleartextServices;
+  }
+
+  // ── Step 5: Generate CBOM ───────────────────────────────
   console.log(`  [CBOM] Generating Cryptographic Bill of Materials...`);
   const cbom = generateCBOM(primaryScan, cipherSuites, supportedVersions);
 

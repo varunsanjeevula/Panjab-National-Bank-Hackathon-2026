@@ -49,6 +49,9 @@ function generateCBOM(scanData, cipherSuites, supportedVersions) {
     // ── Ephemeral Key Exchange ────────────────────────────
     ephemeralKeyInfo: processEphemeralKey(scanData.ephemeralKeyInfo),
 
+    // ── Cleartext Services ────────────────────────────────
+    cleartextServices: scanData.cleartextServices || [],
+
     // ── Quantum Safety Assessment ─────────────────────────
     quantumAssessment: null,
 
@@ -61,7 +64,8 @@ function generateCBOM(scanData, cipherSuites, supportedVersions) {
   const scanResult = {
     certificate: cbom.certificate,
     cipherSuiteAnalysis: cbom.cipherSuites,
-    supportedVersions: cbom.tlsVersions.supported
+    supportedVersions: cbom.tlsVersions.supported,
+    cleartextServices: cbom.cleartextServices
   };
 
   // Determine overall quantum-safety label
@@ -208,6 +212,12 @@ function calculateQuantumScore(cbom) {
     deductions.push('Certificate key algorithm is classically broken (-35)');
   }
 
+  // Cleartext Services
+  if (cbom.cleartextServices && cbom.cleartextServices.length > 0) {
+    score -= 100;
+    deductions.push('CRITICAL: Cleartext, unencrypted services detected (-100)');
+  }
+
   // Certificate signature
   if (cbom.certificate?.signatureClassification?.quantumStatus === QUANTUM_STATUS.VULNERABLE) {
     score -= 15;
@@ -253,6 +263,11 @@ function calculateQuantumScore(cbom) {
   }
 
   score = Math.max(0, Math.min(100, score));
+
+  // If cleartext services exist, force label to NOT_PQC_READY regardless of other crypto
+  if (cbom.cleartextServices && cbom.cleartextServices.length > 0 && cbom.quantumAssessment) {
+    cbom.quantumAssessment.label = 'CRITICALLY VULNERABLE';
+  }
 
   return { score, deductions };
 }

@@ -290,6 +290,26 @@ export default function AssetDetail() {
         </motion.div>
       </div>
 
+      {/* Cleartext Services (Intranet scanning) */}
+      {record.cleartextServices && record.cleartextServices.length > 0 && (
+        <motion.div className="card" style={{ marginBottom: 20, border: '1px solid var(--color-danger)', background: 'rgba(220, 38, 38, 0.05)' }} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+          <div className="detail-section-title" style={{ borderBottom: 'none', paddingBottom: 0, color: 'var(--color-danger)' }}>
+            <AlertTriangle size={18} style={{ color: 'var(--color-danger)' }} /> Cleartext Services Detected ({record.cleartextServices.length})
+          </div>
+          <div style={{ marginTop: 12, fontSize: 13, color: 'var(--text-secondary)' }}>
+            The following unencrypted services were detected on this host. Cleartext protocols expose sensitive data and violate quantum-safe zero-trust principles.
+            <ul style={{ marginTop: 12, paddingLeft: 20 }}>
+              {record.cleartextServices.map((svc, i) => (
+                <li key={i} style={{ marginBottom: 6, fontWeight: 500 }}>
+                  <span className="badge badge-critical" style={{ marginRight: 8, padding: '2px 6px', fontSize: 10 }}>UNENCRYPTED</span>
+                  {svc}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </motion.div>
+      )}
+
       {/* Cipher Suites */}
       {record.cipherSuites && record.cipherSuites.length > 0 && (
         <motion.div className="card" style={{ marginBottom: 20 }} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>

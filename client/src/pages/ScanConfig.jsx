@@ -11,6 +11,7 @@ export default function ScanConfig() {
   const [scanning, setScanning] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [scanVpn, setScanVpn] = useState(false);
+  const [enableCleartextScan, setEnableCleartextScan] = useState(false);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
@@ -110,7 +111,7 @@ export default function ScanConfig() {
 
     try {
       const [res] = await Promise.all([
-        startScan(expandedTargets.map(t => ({ host: t.trim(), port: defaultPort })), { scanVpn }),
+        startScan(expandedTargets.map(t => ({ host: t.trim(), port: defaultPort })), { scanVpn, enableCleartextScan }),
         new Promise(resolve => setTimeout(resolve, 5000))
       ]);
       toast.success(`Scan initiated for ${expandedTargets.length} target(s)!`);
@@ -201,13 +202,23 @@ export default function ScanConfig() {
                   onChange={(e) => setDefaultPort(parseInt(e.target.value) || 443)} disabled={scanning}
                   style={{ fontFamily: 'var(--font-mono)' }} />
               </div>
-              <div>
-                <label className="detail-item-label" style={{ display: 'block', marginBottom: 6 }}>VPN SCANNING</label>
-                <button type="button" className={`btn btn-sm ${scanVpn ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ width: '100%', height: 42 }}
-                  onClick={() => setScanVpn(!scanVpn)}>
-                  <Network size={14} /> {scanVpn ? 'Enabled' : 'Disabled'}
-                </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div>
+                  <label className="detail-item-label" style={{ display: 'block', marginBottom: 6 }}>VPN SCANNING</label>
+                  <button type="button" className={`btn btn-sm ${scanVpn ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ width: '100%', height: 42 }}
+                    onClick={() => setScanVpn(!scanVpn)}>
+                    <Network size={14} /> {scanVpn ? 'Enabled' : 'Disabled'}
+                  </button>
+                </div>
+                <div>
+                  <label className="detail-item-label" style={{ display: 'block', marginBottom: 6 }}>CLEARTEXT PROTOCOLS (INTRANET)</label>
+                  <button type="button" className={`btn btn-sm ${enableCleartextScan ? 'btn-danger' : 'btn-secondary'}`}
+                    style={{ width: '100%', height: 42, display: 'flex', justifyContent: 'center' }}
+                    onClick={() => setEnableCleartextScan(!enableCleartextScan)}>
+                    <AlertCircle size={14} /> {enableCleartextScan ? 'Enabled (Slower)' : 'Disabled'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

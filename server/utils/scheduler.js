@@ -10,24 +10,57 @@ const crypto = require('crypto');
 const activeJobs = new Map();
 
 /**
- * Calculate next run date from cron expression
+ * Calculate next run date from a 5-field cron expression.
+ * Supports standard cron fields: minute, hour, day-of-month, month, day-of-week.
+ * Uses a forward-search approach (up to 366 days) to find the next valid time.
  */
 function getNextRun(cronExpr) {
-  const now = new Date();
-  // Simple approximation — use cron-parser in production
-  const parts = cronExpr.split(' ');
-  const next = new Date(now);
-  next.setSeconds(0);
-  next.setMilliseconds(0);
-
-  if (parts[1] !== '*') next.setHours(parseInt(parts[1]));
-  if (parts[0] !== '*') next.setMinutes(parseInt(parts[0]));
-
-  // Move to next occurrence
-  if (next <= now) {
-    next.setDate(next.getDate() + 1);
+  const parts = cronExpr.trim().split(/\s+/);
+  if (parts.length < 5) {
+    // Fallback: return 1 hour from now for malformed expressions
+    return new Date(Date.now() + 60 * 60 * 1000);
   }
-  return next;
+
+  const [minutePart, hourPart, domPart, monthPart, dowPart] = parts;
+
+  function matches(value, part, min, max) {
+    if (part === '*') return true;
+    // Handle step values like */5
+    if (part.startsWith('*/')) {
+      const step = parseInt(part.slice(2));
+      return (value - min) % step === 0;
+    }
+    // Handle comma-separated values
+    return part.split(',').some(p => {
+      if (p.includes('-')) {
+        const [lo, hi] = p.split('-').map(Number);
+        return value >= lo && value <= hi;
+      }
+      return parseInt(p) === value;
+    });
+  }
+
+  const start = new Date();
+  start.setSeconds(0);
+  start.setMilliseconds(0);
+  // Start searching from the next minute
+  start.setMinutes(start.getMinutes() + 1);
+
+  for (let i = 0; i < 366 * 24 * 60; i++) {
+    const candidate = new Date(start.getTime() + i * 60 * 1000);
+    if (
+      matches(candidate.getMonth() + 1, monthPart, 1, 12) &&
+      matches(candidate.getDate(), domPart, 1, 31) &&
+      matches(candidate.getDay(), dowPart, 0, 6) &&
+      matches(candidate.getHours(), hourPart, 0, 23) &&
+      matches(candidate.getMinutes(), minutePart, 0, 59)
+    ) {
+      return candidate;
+    }
+  }
+
+  // Fallback: return 1 week from now if no match found
+  return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 }
 
 /**

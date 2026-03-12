@@ -239,11 +239,28 @@ async function runScanInBackground(scan, targets, user) {
 router.get('/', protect, async (req, res) => {
   try {
     const filter = req.user.role === 'admin' ? {} : { initiatedBy: req.user._id };
-    const scans = await Scan.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .populate('initiatedBy', 'username');
-    res.json(scans);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+    const skip = (page - 1) * limit;
+
+    const [scans, total] = await Promise.all([
+      Scan.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('initiatedBy', 'username'),
+      Scan.countDocuments(filter)
+    ]);
+
+    res.json({
+      scans,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -259,6 +276,14 @@ router.get('/compare/:id1/:id2', protect, async (req, res) => {
       Scan.findById(req.params.id2).lean()
     ]);
     if (!scan1 || !scan2) return res.status(404).json({ error: 'One or both scans not found' });
+
+    // Non-admin users can only compare their own scans
+    if (req.user.role !== 'admin') {
+      const userId = req.user._id.toString();
+      if (scan1.initiatedBy.toString() !== userId || scan2.initiatedBy.toString() !== userId) {
+        return res.status(403).json({ error: 'Not authorized to compare these scans' });
+      }
+    }
 
     const [records1, records2] = await Promise.all([
       CbomRecord.find({ scanId: req.params.id1 }).lean(),
@@ -305,6 +330,11 @@ router.get('/:id', protect, async (req, res) => {
     const scan = await Scan.findById(req.params.id).populate('initiatedBy', 'username');
     if (!scan) {
       return res.status(404).json({ error: 'Scan not found' });
+    }
+
+    // Non-admin users can only access their own scans
+    if (req.user.role !== 'admin' && scan.initiatedBy._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Not authorized to view this scan' });
     }
 
     // Get CBOM records

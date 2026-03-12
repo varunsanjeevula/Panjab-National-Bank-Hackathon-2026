@@ -12,7 +12,8 @@ const router = express.Router();
 // @access  Private
 router.get('/list', protect, async (req, res) => {
   try {
-    const scans = await Scan.find()
+    const filter = req.user.role === 'admin' ? {} : { initiatedBy: req.user._id };
+    const scans = await Scan.find(filter)
       .sort({ createdAt: -1 })
       .populate('initiatedBy', 'username')
       .lean();
@@ -57,6 +58,12 @@ router.get('/list', protect, async (req, res) => {
 // @access  Private
 router.get('/:scanId/json', protect, async (req, res) => {
   try {
+    const scan = await Scan.findById(req.params.scanId).lean();
+    if (!scan) return res.status(404).json({ error: 'Scan not found' });
+    if (req.user.role !== 'admin' && scan.initiatedBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Not authorized to export this scan' });
+    }
+
     const records = await CbomRecord.find({ scanId: req.params.scanId }).lean();
     if (!records.length) {
       return res.status(404).json({ error: 'No records found' });
@@ -90,6 +97,12 @@ router.get('/:scanId/json', protect, async (req, res) => {
 // @access  Private
 router.get('/:scanId/csv', protect, async (req, res) => {
   try {
+    const scan = await Scan.findById(req.params.scanId).lean();
+    if (!scan) return res.status(404).json({ error: 'Scan not found' });
+    if (req.user.role !== 'admin' && scan.initiatedBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Not authorized to export this scan' });
+    }
+
     const records = await CbomRecord.find({ scanId: req.params.scanId, status: 'completed' }).lean();
     if (!records.length) {
       return res.status(404).json({ error: 'No records found' });
@@ -149,6 +162,9 @@ router.get('/:scanId/pdf', protect, async (req, res) => {
   try {
     const scan = await Scan.findById(req.params.scanId).lean();
     if (!scan) return res.status(404).json({ error: 'Scan not found' });
+    if (req.user.role !== 'admin' && scan.initiatedBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Not authorized to export this scan' });
+    }
 
     const records = await CbomRecord.find({ scanId: req.params.scanId, status: 'completed' }).lean();
     if (!records.length) return res.status(404).json({ error: 'No completed records found' });

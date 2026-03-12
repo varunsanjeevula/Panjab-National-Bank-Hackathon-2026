@@ -1,6 +1,7 @@
 const express = require('express');
 const { protect } = require('../middleware/auth');
 const { authorize } = require('../middleware/rbac');
+const { validatePassword } = require('../middleware/passwordPolicy');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const bcrypt = require('bcryptjs');
@@ -28,6 +29,10 @@ router.post('/users', async (req, res) => {
     const { username, email, password, role } = req.body;
     if (!username || !email || !password) {
       return res.status(400).json({ error: 'Username, email, and password are required' });
+    }
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.valid) {
+      return res.status(400).json({ error: 'Password does not meet security requirements', details: pwCheck.errors });
     }
     const existingUser = await User.findOne({ $or: [{ username }, { email }] });
     if (existingUser) {

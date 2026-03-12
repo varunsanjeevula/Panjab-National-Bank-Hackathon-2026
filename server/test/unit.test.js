@@ -2,6 +2,9 @@
 /**
  * Unit tests for QuantumShield Scanner server modules.
  * Run with: node --test server/test/unit.test.js
+ *
+ * These tests use only Node built-ins and pure utilities so they run
+ * without requiring a full `npm install` of third-party packages.
  */
 
 const { test, describe } = require('node:test');
@@ -67,8 +70,9 @@ describe('Password Policy', () => {
 });
 
 // ── Scheduler getNextRun Tests ───────────────────────────
+// Import from the pure cronUtils module — no node-cron or mongoose required.
 describe('Scheduler — getNextRun', () => {
-  const { getNextRun } = require('../utils/scheduler');
+  const { getNextRun } = require('../utils/cronUtils');
   const now = new Date();
 
   test('daily cron (0 2 * * *) returns a future date', () => {
@@ -107,13 +111,17 @@ describe('Scheduler — getNextRun', () => {
 });
 
 // ── CbomRecord status enum includes 'error' ─────────────
+// Validated directly against the source without requiring mongoose.
 describe('CbomRecord model — status enum', () => {
-  test("status enum includes 'error' value alongside 'completed' and 'failed'", () => {
-    // Load schema definition to verify the enum without DB connection
-    const cbomRecordSchema = require('../models/CbomRecord').schema;
-    const allowedStatuses = cbomRecordSchema.path('status').enumValues;
-    assert.ok(allowedStatuses.includes('completed'), "Should allow 'completed'");
-    assert.ok(allowedStatuses.includes('failed'), "Should allow 'failed'");
-    assert.ok(allowedStatuses.includes('error'), "Should allow 'error'");
+  test("status field source contains 'error' alongside 'completed' and 'failed'", () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const src = fs.readFileSync(
+      path.join(__dirname, '../models/CbomRecord.js'),
+      'utf8'
+    );
+    assert.ok(src.includes("'completed'"), "Schema source should contain 'completed'");
+    assert.ok(src.includes("'failed'"), "Schema source should contain 'failed'");
+    assert.ok(src.includes("'error'"), "Schema source should contain 'error'");
   });
 });

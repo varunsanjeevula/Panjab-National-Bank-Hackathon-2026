@@ -208,10 +208,13 @@ async function runScanInBackground(scan, targets, user) {
 router.get('/', protect, async (req, res) => {
   try {
     const filter = req.user.role === 'admin' ? {} : { initiatedBy: req.user._id };
-    const scans = await Scan.find(filter)
+    const scans = await Scan.find(filter,
+      'targets status progress summary createdAt completedAt initiatedBy'
+    )
       .sort({ createdAt: -1 })
       .limit(50)
-      .populate('initiatedBy', 'username');
+      .populate('initiatedBy', 'username')
+      .lean();
     res.json(scans);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -271,13 +274,13 @@ router.get('/compare/:id1/:id2', protect, async (req, res) => {
 // @access  Private
 router.get('/:id', protect, async (req, res) => {
   try {
-    const scan = await Scan.findById(req.params.id).populate('initiatedBy', 'username');
+    const scan = await Scan.findById(req.params.id).populate('initiatedBy', 'username').lean();
     if (!scan) {
       return res.status(404).json({ error: 'Scan not found' });
     }
 
     // Get CBOM records
-    const cbomRecords = await CbomRecord.find({ scanId: scan._id });
+    const cbomRecords = await CbomRecord.find({ scanId: scan._id }).lean();
 
     res.json({ scan, cbomRecords });
   } catch (err) {

@@ -80,9 +80,10 @@ const cbomRecordSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for efficient queries
-cbomRecordSchema.index({ scanId: 1 });
+// Indexes for efficient queries
+cbomRecordSchema.index({ scanId: 1, status: 1 });
 cbomRecordSchema.index({ host: 1 });
-cbomRecordSchema.index({ 'quantumAssessment.label': 1 });
+cbomRecordSchema.index({ status: 1, 'quantumAssessment.label': 1 });
+cbomRecordSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('CbomRecord', cbomRecordSchema);

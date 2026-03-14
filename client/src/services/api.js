@@ -86,5 +86,10 @@ export const triggerSchedule = (id) => API.post(`/schedules/${id}/run`);
 // ── VPN Scan ────────────────────────────────────────────
 export const scanVPN = (host) => API.post('/vpn-scan', { host });
 
+// ── Asset Inventory ────────────────────────────────────
+export const getAssetDomains = () => API.get('/asset-inventory/domains');
+export const getAssetSSL = () => API.get('/asset-inventory/ssl');
+export const getAssetIPs = () => API.get('/asset-inventory/ip');
+
 export default API;
 

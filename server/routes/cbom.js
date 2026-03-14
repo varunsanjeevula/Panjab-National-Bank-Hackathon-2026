@@ -9,7 +9,7 @@ const router = express.Router();
 // @access  Private
 router.get('/:scanId', protect, async (req, res) => {
   try {
-    const records = await CbomRecord.find({ scanId: req.params.scanId });
+    const records = await CbomRecord.find({ scanId: req.params.scanId }).lean();
     if (!records.length) {
       return res.status(404).json({ error: 'No CBOM records found for this scan' });
     }
@@ -24,7 +24,7 @@ router.get('/:scanId', protect, async (req, res) => {
 // @access  Private
 router.get('/record/:id', protect, async (req, res) => {
   try {
-    const record = await CbomRecord.findById(req.params.id);
+    const record = await CbomRecord.findById(req.params.id).lean();
     if (!record) {
       return res.status(404).json({ error: 'CBOM record not found' });
     }
@@ -37,28 +37,43 @@ router.get('/record/:id', protect, async (req, res) => {
 // @route   GET /api/cbom/stats/overview
 // @desc    Get aggregate CBOM statistics across all scans
 // @access  Private
+let statsCache = { data: null, ts: 0 };
+const STATS_TTL = 60 * 1000; // 1-minute cache
+
 router.get('/stats/overview', protect, async (req, res) => {
   try {
-    const totalAssets = await CbomRecord.countDocuments({ status: 'completed' });
+    if (statsCache.data && Date.now() - statsCache.ts < STATS_TTL) {
+      return res.json(statsCache.data);
+    }
 
-    const labelAgg = await CbomRecord.aggregate([
+    const agg = await CbomRecord.aggregate([
       { $match: { status: 'completed' } },
-      { $group: { _id: '$quantumAssessment.label', count: { $sum: 1 } } }
+      {
+        $group: {
+          _id: '$quantumAssessment.label',
+          count: { $sum: 1 },
+          totalScore: { $sum: '$quantumAssessment.score.score' }
+        }
+      }
     ]);
 
+    let totalAssets = 0;
+    let totalScore = 0;
     const labelDistribution = {};
-    labelAgg.forEach(l => { labelDistribution[l._id] = l.count; });
+    for (const item of agg) {
+      labelDistribution[item._id] = item.count;
+      totalAssets += item.count;
+      totalScore += item.totalScore;
+    }
 
-    const scoreAgg = await CbomRecord.aggregate([
-      { $match: { status: 'completed' } },
-      { $group: { _id: null, avgScore: { $avg: '$quantumAssessment.score.score' } } }
-    ]);
-
-    res.json({
+    const result = {
       totalAssets,
       labelDistribution,
-      averageScore: Math.round(scoreAgg[0]?.avgScore || 0)
-    });
+      averageScore: totalAssets > 0 ? Math.round(totalScore / totalAssets) : 0
+    };
+
+    statsCache = { data: result, ts: Date.now() };
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -43,4 +43,8 @@ const scanSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Indexes for fast queries
+scanSchema.index({ initiatedBy: 1, status: 1, createdAt: -1 });
+scanSchema.index({ status: 1 });
+
 module.exports = mongoose.model('Scan', scanSchema);

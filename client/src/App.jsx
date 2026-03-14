@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
-import { Shield, LayoutDashboard, Scan, FileText, LogOut, Settings, Clock, CalendarClock } from 'lucide-react';
+import { Shield, LayoutDashboard, Scan, FileText, LogOut, Settings, Clock, CalendarClock, Database } from 'lucide-react';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import ScanConfig from './pages/ScanConfig';
@@ -11,6 +11,7 @@ import Reports from './pages/Reports';
 import AdminPanel from './pages/AdminPanel';
 import ScanHistory from './pages/ScanHistory';
 import ScheduleManager from './pages/ScheduleManager';
+import AssetInventory from './pages/AssetInventory';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -46,6 +47,9 @@ function Sidebar() {
         </NavLink>
         <NavLink to="/history" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
           <Clock size={20} /> Scan History
+        </NavLink>
+        <NavLink to="/assets" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+          <Database size={20} /> Asset Inventory
         </NavLink>
         <NavLink to="/reports" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
           <FileText size={20} /> Reports
@@ -96,6 +100,7 @@ export default function App() {
           <Route path="/dashboard" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
           <Route path="/scan" element={<ProtectedRoute><AppLayout><ScanConfig /></AppLayout></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><AppLayout><ScanHistory /></AppLayout></ProtectedRoute>} />
+          <Route path="/assets" element={<ProtectedRoute><AppLayout><AssetInventory /></AppLayout></ProtectedRoute>} />
           <Route path="/results/:id" element={<ProtectedRoute><AppLayout><ScanResults /></AppLayout></ProtectedRoute>} />
           <Route path="/asset/:id" element={<ProtectedRoute><AppLayout><AssetDetail /></AppLayout></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><AppLayout><Reports /></AppLayout></ProtectedRoute>} />

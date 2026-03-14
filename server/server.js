@@ -43,6 +43,7 @@ app.use('/api/cbom', require('./routes/cbom'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/schedules', require('./routes/schedule'));
+app.use('/api/assets', require('./routes/assets'));
 
 // VPN Scan endpoint
 const { protect } = require('./middleware/auth');

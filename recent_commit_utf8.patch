@@ -1,0 +1,522 @@
+﻿commit a242ae93748f967c374cb2224d07ecc9770fab88
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Thu Mar 12 18:52:14 2026 +0000
+
+    Fix security, data bugs, and reliability issues in QuantumShield Scanner
+    
+    - Fix reports/list missing ownership filter for non-admin users
+    - Add ownership checks to report export endpoints (JSON/CSV/PDF)
+    - Add ownership check to GET /api/scan/:id for non-admin users
+    - Add ownership check to scan compare endpoint
+    - Add ownership checks to CBOM record/list endpoints
+    - Enforce password policy in admin user creation
+    - Fix CbomRecord status enum missing 'error' value
+    - Add DB connection retry logic (5 retries, 3s delay)
+    - Replace inaccurate getNextRun() with proper cron forward-search parser
+    - Add pagination to GET /api/scan (page/limit query params)
+    - Fix test-register.js to use password meeting the policy
+    - Update client to handle paginated scan response
+    - Add 17-test unit test suite with npm test script
+    
+    Co-authored-by: varunsanjeevula <222699877+varunsanjeevula@users.noreply.github.com>
+
+diff --git a/client/src/pages/Dashboard.jsx b/client/src/pages/Dashboard.jsx
+index c8742c6..7b385d0 100644
+--- a/client/src/pages/Dashboard.jsx
++++ b/client/src/pages/Dashboard.jsx
+@@ -21,7 +21,7 @@ export default function Dashboard() {
+         getScans(),
+         getCbomStats().catch(() => ({ data: { totalAssets: 0, labelDistribution: {}, averageScore: 0 } }))
+       ]);
+-      setScans(scansRes.data);
++      setScans(scansRes.data.scans || scansRes.data);
+       setStats(statsRes.data);
+     } catch (err) { console.error(err); }
+     finally { setLoading(false); }
+diff --git a/client/src/pages/ScanHistory.jsx b/client/src/pages/ScanHistory.jsx
+index 4593cb7..7ca6062 100644
+--- a/client/src/pages/ScanHistory.jsx
++++ b/client/src/pages/ScanHistory.jsx
+@@ -16,7 +16,7 @@ export default function ScanHistory() {
+     (async () => {
+       try {
+         const { data } = await getScans();
+-        setScans(data);
++        setScans(data.scans || data);
+       } catch { toast.error('Failed to load scans'); }
+       finally { setLoading(false); }
+     })();
+diff --git a/client/src/services/api.js b/client/src/services/api.js
+index 714a058..4f5b32c 100644
+--- a/client/src/services/api.js
++++ b/client/src/services/api.js
+@@ -40,7 +40,8 @@ export const getMe = () => API.get('/auth/me');
+ export const startScan = (targets, config = {}) =>
+   API.post('/scan', { targets, config });
+ 
+-export const getScans = () => API.get('/scan');
++export const getScans = (page = 1, limit = 50) =>
++  API.get('/scan', { params: { page, limit } });
+ 
+ export const getScan = (id) => API.get(`/scan/${id}`);
+ 
+diff --git a/server/config/db.js b/server/config/db.js
+index 1a786f7..126aa58 100644
+--- a/server/config/db.js
++++ b/server/config/db.js
+@@ -1,11 +1,20 @@
+ const mongoose = require('mongoose');
+ 
+-const connectDB = async () => {
++const MAX_RETRIES = 5;
++const RETRY_DELAY_MS = 3000;
++
++const connectDB = async (retries = MAX_RETRIES) => {
+   try {
+     const conn = await mongoose.connect(process.env.MONGO_URI);
+     console.log(`[MongoDB] Connected: ${conn.connection.host}`);
+   } catch (error) {
+     console.error(`[MongoDB] Connection Error: ${error.message}`);
++    if (retries > 0) {
++      console.log(`[MongoDB] Retrying in ${RETRY_DELAY_MS / 1000}s... (${retries} attempts left)`);
++      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
++      return connectDB(retries - 1);
++    }
++    console.error('[MongoDB] Max retries exceeded. Exiting.');
+     process.exit(1);
+   }
+ };
+diff --git a/server/models/CbomRecord.js b/server/models/CbomRecord.js
+index 93f8a70..1761aef 100644
+--- a/server/models/CbomRecord.js
++++ b/server/models/CbomRecord.js
+@@ -9,7 +9,7 @@ const cbomRecordSchema = new mongoose.Schema({
+   // Target info
+   host: { type: String, required: true },
+   port: { type: Number, default: 443 },
+-  status: { type: String, enum: ['completed', 'failed'], default: 'completed' },
++  status: { type: String, enum: ['completed', 'failed', 'error'], default: 'completed' },
+   error: String,
+   scanDuration: Number,
+ 
+diff --git a/server/package-lock.json b/server/package-lock.json
+index 3093951..296f4f6 100644
+--- a/server/package-lock.json
++++ b/server/package-lock.json
+@@ -523,7 +523,6 @@
+       "resolved": "https://registry.npmjs.org/express/-/express-5.2.1.tgz",
+       "integrity": "sha512-hIS4idWWai69NezIdRt2xFVofaF4j+6INOpJlVOLDO8zXGpUVEVzIYk12UUi2JzjEzWL3IOAxcTubgz9Po0yXw==",
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "accepts": "^2.0.0",
+         "body-parser": "^2.2.1",
+diff --git a/server/package.json b/server/package.json
+index 4f30ba5..24d43b4 100644
+--- a/server/package.json
++++ b/server/package.json
+@@ -5,7 +5,8 @@
+   "main": "server.js",
+   "scripts": {
+     "start": "node server.js",
+-    "dev": "node --watch server.js"
++    "dev": "node --watch server.js",
++    "test": "node --test test/unit.test.js"
+   },
+   "keywords": [
+     "quantum",
+diff --git a/server/routes/admin.js b/server/routes/admin.js
+index e603888..40ef933 100644
+--- a/server/routes/admin.js
++++ b/server/routes/admin.js
+@@ -1,6 +1,7 @@
+ const express = require('express');
+ const { protect } = require('../middleware/auth');
+ const { authorize } = require('../middleware/rbac');
++const { validatePassword } = require('../middleware/passwordPolicy');
+ const User = require('../models/User');
+ const AuditLog = require('../models/AuditLog');
+ const bcrypt = require('bcryptjs');
+@@ -29,6 +30,10 @@ router.post('/users', async (req, res) => {
+     if (!username || !email || !password) {
+       return res.status(400).json({ error: 'Username, email, and password are required' });
+     }
++    const pwCheck = validatePassword(password);
++    if (!pwCheck.valid) {
++      return res.status(400).json({ error: 'Password does not meet security requirements', details: pwCheck.errors });
++    }
+     const existingUser = await User.findOne({ $or: [{ username }, { email }] });
+     if (existingUser) {
+       return res.status(400).json({ error: 'Username or email already exists' });
+diff --git a/server/routes/cbom.js b/server/routes/cbom.js
+index 9016580..4789e98 100644
+--- a/server/routes/cbom.js
++++ b/server/routes/cbom.js
+@@ -1,6 +1,7 @@
+ const express = require('express');
+ const { protect } = require('../middleware/auth');
+ const CbomRecord = require('../models/CbomRecord');
++const Scan = require('../models/Scan');
+ 
+ const router = express.Router();
+ 
+@@ -9,6 +10,13 @@ const router = express.Router();
+ // @access  Private
+ router.get('/:scanId', protect, async (req, res) => {
+   try {
++    const scan = await Scan.findById(req.params.scanId).lean();
++    if (!scan) return res.status(404).json({ error: 'Scan not found' });
++
++    if (req.user.role !== 'admin' && scan.initiatedBy.toString() !== req.user._id.toString()) {
++      return res.status(403).json({ error: 'Not authorized to view this scan' });
++    }
++
+     const records = await CbomRecord.find({ scanId: req.params.scanId });
+     if (!records.length) {
+       return res.status(404).json({ error: 'No CBOM records found for this scan' });
+@@ -28,6 +36,15 @@ router.get('/record/:id', protect, async (req, res) => {
+     if (!record) {
+       return res.status(404).json({ error: 'CBOM record not found' });
+     }
++
++    // Verify ownership via parent scan
++    if (req.user.role !== 'admin') {
++      const scan = await Scan.findById(record.scanId).lean();
++      if (!scan || scan.initiatedBy.toString() !== req.user._id.toString()) {
++        return res.status(403).json({ error: 'Not authorized to view this record' });
++      }
++    }
++
+     res.json(record);
+   } catch (err) {
+     res.status(500).json({ error: err.message });
+diff --git a/server/routes/reports.js b/server/routes/reports.js
+index 33f3ba9..80759f7 100644
+--- a/server/routes/reports.js
++++ b/server/routes/reports.js
+@@ -12,7 +12,8 @@ const router = express.Router();
+ // @access  Private
+ router.get('/list', protect, async (req, res) => {
+   try {
+-    const scans = await Scan.find()
++    const filter = req.user.role === 'admin' ? {} : { initiatedBy: req.user._id };
++    const scans = await Scan.find(filter)
+       .sort({ createdAt: -1 })
+       .populate('initiatedBy', 'username')
+       .lean();
+@@ -57,6 +58,12 @@ router.get('/list', protect, async (req, res) => {
+ // @access  Private
+ router.get('/:scanId/json', protect, async (req, res) => {
+   try {
++    const scan = await Scan.findById(req.params.scanId).lean();
++    if (!scan) return res.status(404).json({ error: 'Scan not found' });
++    if (req.user.role !== 'admin' && scan.initiatedBy.toString() !== req.user._id.toString()) {
++      return res.status(403).json({ error: 'Not authorized to export this scan' });
++    }
++
+     const records = await CbomRecord.find({ scanId: req.params.scanId }).lean();
+     if (!records.length) {
+       return res.status(404).json({ error: 'No records found' });
+@@ -90,6 +97,12 @@ router.get('/:scanId/json', protect, async (req, res) => {
+ // @access  Private
+ router.get('/:scanId/csv', protect, async (req, res) => {
+   try {
++    const scan = await Scan.findById(req.params.scanId).lean();
++    if (!scan) return res.status(404).json({ error: 'Scan not found' });
++    if (req.user.role !== 'admin' && scan.initiatedBy.toString() !== req.user._id.toString()) {
++      return res.status(403).json({ error: 'Not authorized to export this scan' });
++    }
++
+     const records = await CbomRecord.find({ scanId: req.params.scanId, status: 'completed' }).lean();
+     if (!records.length) {
+       return res.status(404).json({ error: 'No records found' });
+@@ -149,6 +162,9 @@ router.get('/:scanId/pdf', protect, async (req, res) => {
+   try {
+     const scan = await Scan.findById(req.params.scanId).lean();
+     if (!scan) return res.status(404).json({ error: 'Scan not found' });
++    if (req.user.role !== 'admin' && scan.initiatedBy.toString() !== req.user._id.toString()) {
++      return res.status(403).json({ error: 'Not authorized to export this scan' });
++    }
+ 
+     const records = await CbomRecord.find({ scanId: req.params.scanId, status: 'completed' }).lean();
+     if (!records.length) return res.status(404).json({ error: 'No completed records found' });
+diff --git a/server/routes/scan.js b/server/routes/scan.js
+index 2703db9..a4de309 100644
+--- a/server/routes/scan.js
++++ b/server/routes/scan.js
+@@ -239,11 +239,28 @@ async function runScanInBackground(scan, targets, user) {
+ router.get('/', protect, async (req, res) => {
+   try {
+     const filter = req.user.role === 'admin' ? {} : { initiatedBy: req.user._id };
+-    const scans = await Scan.find(filter)
+-      .sort({ createdAt: -1 })
+-      .limit(50)
+-      .populate('initiatedBy', 'username');
+-    res.json(scans);
++    const page = Math.max(1, parseInt(req.query.page) || 1);
++    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
++    const skip = (page - 1) * limit;
++
++    const [scans, total] = await Promise.all([
++      Scan.find(filter)
++        .sort({ createdAt: -1 })
++        .skip(skip)
++        .limit(limit)
++        .populate('initiatedBy', 'username'),
++      Scan.countDocuments(filter)
++    ]);
++
++    res.json({
++      scans,
++      pagination: {
++        total,
++        page,
++        limit,
++        pages: Math.ceil(total / limit)
++      }
++    });
+   } catch (err) {
+     res.status(500).json({ error: err.message });
+   }
+@@ -260,6 +277,14 @@ router.get('/compare/:id1/:id2', protect, async (req, res) => {
+     ]);
+     if (!scan1 || !scan2) return res.status(404).json({ error: 'One or both scans not found' });
+ 
++    // Non-admin users can only compare their own scans
++    if (req.user.role !== 'admin') {
++      const userId = req.user._id.toString();
++      if (scan1.initiatedBy.toString() !== userId || scan2.initiatedBy.toString() !== userId) {
++        return res.status(403).json({ error: 'Not authorized to compare these scans' });
++      }
++    }
++
+     const [records1, records2] = await Promise.all([
+       CbomRecord.find({ scanId: req.params.id1 }).lean(),
+       CbomRecord.find({ scanId: req.params.id2 }).lean()
+@@ -307,6 +332,11 @@ router.get('/:id', protect, async (req, res) => {
+       return res.status(404).json({ error: 'Scan not found' });
+     }
+ 
++    // Non-admin users can only access their own scans
++    if (req.user.role !== 'admin' && scan.initiatedBy._id.toString() !== req.user._id.toString()) {
++      return res.status(403).json({ error: 'Not authorized to view this scan' });
++    }
++
+     // Get CBOM records
+     const cbomRecords = await CbomRecord.find({ scanId: scan._id });
+ 
+diff --git a/server/test-register.js b/server/test-register.js
+index 9d99202..bea364c 100644
+--- a/server/test-register.js
++++ b/server/test-register.js
+@@ -3,7 +3,7 @@ const http = require('http');
+ const data = JSON.stringify({
+   username: 'testuser',
+   email: 'test@test.com',
+-  password: 'test1234'
++  password: 'TestUser@1234'
+ });
+ 
+ const options = {
+diff --git a/server/test/unit.test.js b/server/test/unit.test.js
+new file mode 100644
+index 0000000..52e61e2
+--- /dev/null
++++ b/server/test/unit.test.js
+@@ -0,0 +1,119 @@
++'use strict';
++/**
++ * Unit tests for QuantumShield Scanner server modules.
++ * Run with: node --test server/test/unit.test.js
++ */
++
++const { test, describe } = require('node:test');
++const assert = require('node:assert/strict');
++
++// ΓöÇΓöÇ Password Policy Tests ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++describe('Password Policy', () => {
++  const { validatePassword } = require('../middleware/passwordPolicy');
++
++  test('accepts a strong password meeting all requirements', () => {
++    const result = validatePassword('Admin#1234');
++    assert.equal(result.valid, true, `Expected valid but got errors: ${result.errors}`);
++  });
++
++  test('accepts exactly 8-character password', () => {
++    const result = validatePassword('Short1A!');
++    assert.equal(result.valid, true);
++  });
++
++  test('rejects password without uppercase letter', () => {
++    const result = validatePassword('nouppercase1!');
++    assert.equal(result.valid, false);
++    assert.ok(result.errors.some(e => /uppercase/i.test(e)));
++  });
++
++  test('rejects password without lowercase letter', () => {
++    const result = validatePassword('NOLOWERCASE1!');
++    assert.equal(result.valid, false);
++    assert.ok(result.errors.some(e => /lowercase/i.test(e)));
++  });
++
++  test('rejects password without special character', () => {
++    const result = validatePassword('NoSpecialChar1');
++    assert.equal(result.valid, false);
++    assert.ok(result.errors.some(e => /special/i.test(e)));
++  });
++
++  test('rejects password without a number', () => {
++    const result = validatePassword('NoNumber!Aa');
++    assert.equal(result.valid, false);
++    assert.ok(result.errors.some(e => /number/i.test(e)));
++  });
++
++  test('rejects empty password', () => {
++    const result = validatePassword('');
++    assert.equal(result.valid, false);
++  });
++
++  test('rejects null password', () => {
++    const result = validatePassword(null);
++    assert.equal(result.valid, false);
++  });
++
++  test('test-register script password (TestUser@1234) meets policy', () => {
++    const result = validatePassword('TestUser@1234');
++    assert.equal(result.valid, true);
++  });
++
++  test('old weak test password (test1234) is correctly rejected', () => {
++    const result = validatePassword('test1234');
++    assert.equal(result.valid, false);
++  });
++});
++
++// ΓöÇΓöÇ Scheduler getNextRun Tests ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++describe('Scheduler ΓÇö getNextRun', () => {
++  const { getNextRun } = require('../utils/scheduler');
++  const now = new Date();
++
++  test('daily cron (0 2 * * *) returns a future date', () => {
++    const next = getNextRun('0 2 * * *');
++    assert.ok(next > now, `Expected future date, got ${next}`);
++  });
++
++  test('daily cron (0 2 * * *) has correct hour and minute', () => {
++    const next = getNextRun('0 2 * * *');
++    assert.equal(next.getHours(), 2);
++    assert.equal(next.getMinutes(), 0);
++  });
++
++  test('weekly cron (30 3 * * 1) returns a Monday', () => {
++    const next = getNextRun('30 3 * * 1');
++    assert.equal(next.getDay(), 1, 'Expected day 1 (Monday)');
++    assert.equal(next.getHours(), 3);
++    assert.equal(next.getMinutes(), 30);
++  });
++
++  test('monthly cron (0 2 1 * *) returns the 1st of a month', () => {
++    const next = getNextRun('0 2 1 * *');
++    assert.equal(next.getDate(), 1);
++    assert.ok(next > now);
++  });
++
++  test('invalid cron expression returns a fallback future date', () => {
++    const next = getNextRun('invalid');
++    assert.ok(next > now, 'Should return a future fallback date for invalid expression');
++  });
++
++  test('cron with fewer than 5 parts returns a fallback future date', () => {
++    const next = getNextRun('0 2 * *');
++    assert.ok(next > now);
++  });
++});
++
++// ΓöÇΓöÇ CbomRecord status enum includes 'error' ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++describe('CbomRecord model ΓÇö status enum', () => {
++  test("status enum includes 'error' value alongside 'completed' and 'failed'", () => {
++    // Load schema definition to verify the enum without DB connection
++    const cbomRecordSchema = require('../models/CbomRecord').schema;
++    const allowedStatuses = cbomRecordSchema.path('status').enumValues;
++    assert.ok(allowedStatuses.includes('completed'), "Should allow 'completed'");
++    assert.ok(allowedStatuses.includes('failed'), "Should allow 'failed'");
++    assert.ok(allowedStatuses.includes('error'), "Should allow 'error'");
++  });
++});
+diff --git a/server/utils/scheduler.js b/server/utils/scheduler.js
+index 5f89a7f..47a780a 100644
+--- a/server/utils/scheduler.js
++++ b/server/utils/scheduler.js
+@@ -10,24 +10,57 @@ const crypto = require('crypto');
+ const activeJobs = new Map();
+ 
+ /**
+- * Calculate next run date from cron expression
++ * Calculate next run date from a 5-field cron expression.
++ * Supports standard cron fields: minute, hour, day-of-month, month, day-of-week.
++ * Uses a forward-search approach (up to 366 days) to find the next valid time.
+  */
+ function getNextRun(cronExpr) {
+-  const now = new Date();
+-  // Simple approximation ΓÇö use cron-parser in production
+-  const parts = cronExpr.split(' ');
+-  const next = new Date(now);
+-  next.setSeconds(0);
+-  next.setMilliseconds(0);
+-
+-  if (parts[1] !== '*') next.setHours(parseInt(parts[1]));
+-  if (parts[0] !== '*') next.setMinutes(parseInt(parts[0]));
+-
+-  // Move to next occurrence
+-  if (next <= now) {
+-    next.setDate(next.getDate() + 1);
++  const parts = cronExpr.trim().split(/\s+/);
++  if (parts.length < 5) {
++    // Fallback: return 1 hour from now for malformed expressions
++    return new Date(Date.now() + 60 * 60 * 1000);
+   }
+-  return next;
++
++  const [minutePart, hourPart, domPart, monthPart, dowPart] = parts;
++
++  function matches(value, part, min, max) {
++    if (part === '*') return true;
++    // Handle step values like */5
++    if (part.startsWith('*/')) {
++      const step = parseInt(part.slice(2));
++      return (value - min) % step === 0;
++    }
++    // Handle comma-separated values
++    return part.split(',').some(p => {
++      if (p.includes('-')) {
++        const [lo, hi] = p.split('-').map(Number);
++        return value >= lo && value <= hi;
++      }
++      return parseInt(p) === value;
++    });
++  }
++
++  const start = new Date();
++  start.setSeconds(0);
++  start.setMilliseconds(0);
++  // Start searching from the next minute
++  start.setMinutes(start.getMinutes() + 1);
++
++  for (let i = 0; i < 366 * 24 * 60; i++) {
++    const candidate = new Date(start.getTime() + i * 60 * 1000);
++    if (
++      matches(candidate.getMonth() + 1, monthPart, 1, 12) &&
++      matches(candidate.getDate(), domPart, 1, 31) &&
++      matches(candidate.getDay(), dowPart, 0, 6) &&
++      matches(candidate.getHours(), hourPart, 0, 23) &&
++      matches(candidate.getMinutes(), minutePart, 0, 59)
++    ) {
++      return candidate;
++    }
++  }
++
++  // Fallback: return 1 week from now if no match found
++  return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+ }
+ 
+ /**

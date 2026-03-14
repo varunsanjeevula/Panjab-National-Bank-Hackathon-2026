@@ -83,6 +83,9 @@ export const updateSchedule = (id, data) => API.put(`/schedules/${id}`, data);
 export const deleteSchedule = (id) => API.delete(`/schedules/${id}`);
 export const triggerSchedule = (id) => API.post(`/schedules/${id}/run`);
 
+// ── Asset Inventory ──────────────────────────────────────
+export const getAssetDomains = () => API.get('/assets/domains');
+
 // ── VPN Scan ────────────────────────────────────────────
 export const scanVPN = (host) => API.post('/vpn-scan', { host });
 

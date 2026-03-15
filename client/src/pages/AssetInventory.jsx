@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getAssetDomains, getAssetSSL, getAssetIPs } from '../services/api';
+import { getAssetDomains, getAssetSSL, getAssetIPs, getAssetSoftware } from '../services/api';
 import { motion } from 'framer-motion';
 import { Globe, Lock, Network, PackageOpen, Search, Calendar, Building2, ShieldCheck, Fingerprint, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -18,6 +18,7 @@ export default function AssetInventory() {
   const [domains, setDomains] = useState([]);
   const [sslRecords, setSslRecords] = useState([]);
   const [ipRecords, setIpRecords] = useState([]);
+  const [softwareRecords, setSoftwareRecords] = useState([]);
   const [loadingTab, setLoadingTab] = useState(null);
   const [search, setSearch] = useState('');
   const loadedTabs = useRef(new Set());
@@ -69,6 +70,19 @@ export default function AssetInventory() {
         }
       })();
     }
+    if (activeTab === 'software') {
+      setLoadingTab('software');
+      (async () => {
+        try {
+          const { data } = await getAssetSoftware();
+          if (!cancelled) { setSoftwareRecords(data); loadedTabs.current.add('software'); }
+        } catch {
+          if (!cancelled) toast.error('Failed to load software inventory');
+        } finally {
+          if (!cancelled) setLoadingTab(null);
+        }
+      })();
+    }
 
     return () => { cancelled = true; };
   }, [activeTab]);
@@ -89,6 +103,7 @@ export default function AssetInventory() {
       prefetch('domains', getAssetDomains, setDomains);
       prefetch('ssl', getAssetSSL, setSslRecords);
       prefetch('ip', getAssetIPs, setIpRecords);
+      prefetch('software', getAssetSoftware, setSoftwareRecords);
     }, 500); // small delay to not compete with active tab
     return () => clearTimeout(timer);
   }, [loadingTab]);
@@ -129,6 +144,18 @@ export default function AssetInventory() {
     );
   });
 
+  const filteredSoftware = softwareRecords.filter(s => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      (s.product || '').toLowerCase().includes(q) ||
+      (s.host || '').toLowerCase().includes(q) ||
+      (s.version || '').toLowerCase().includes(q) ||
+      (s.type || '').toLowerCase().includes(q) ||
+      (s.companyName || '').toLowerCase().includes(q)
+    );
+  });
+
   const formatDate = (dateStr) => {
     if (!dateStr) return '—';
     const d = new Date(dateStr);
@@ -161,7 +188,7 @@ export default function AssetInventory() {
                 padding: '10px 16px',
                 borderRadius: 'var(--radius-md)',
                 border: 'none',
-                cursor: tab.key !== 'software' ? 'pointer' : 'default',
+                cursor: 'pointer',
                 fontFamily: 'var(--font-sans)',
                 fontSize: 13,
                 fontWeight: isActive ? 600 : 500,
@@ -169,7 +196,7 @@ export default function AssetInventory() {
                 color: isActive ? 'var(--brand-primary)' : 'var(--text-muted)',
                 boxShadow: isActive ? 'var(--shadow-sm)' : 'none',
                 transition: 'all var(--transition-fast)',
-                opacity: tab.key === 'software' ? 0.5 : 1
+                opacity: 1
               }}
             >
               <Icon size={16} /> {tab.label}
@@ -489,11 +516,113 @@ export default function AssetInventory() {
       )}
 
       {activeTab === 'software' && (
-        <div className="card" style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>
-          <PackageOpen size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Software Inventory</div>
-          <div style={{ fontSize: 13 }}>Coming soon — Software details will appear here.</div>
-        </div>
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          {/* Search bar */}
+          <div className="card" style={{ marginBottom: 16, padding: '12px 20px' }}>
+            <div style={{ position: 'relative' }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                className="form-input"
+                placeholder="Search by product, host, type, company..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{ paddingLeft: 32, height: 36, fontSize: 13 }}
+              />
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="stats-grid" style={{ marginBottom: 20 }}>
+            <div className="stat-card">
+              <div className="stat-card-label">Total Software</div>
+              <div className="stat-card-value">{softwareRecords.length}</div>
+              <div className="stat-card-sub"><PackageOpen size={12} /> Discovered from scans</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-card-label">Unique Types</div>
+              <div className="stat-card-value">{new Set(softwareRecords.map(s => s.type).filter(Boolean)).size}</div>
+              <div className="stat-card-sub"><ShieldCheck size={12} /> Algorithm types</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-card-label">Unique Hosts</div>
+              <div className="stat-card-value">{new Set(softwareRecords.map(s => s.host).filter(Boolean)).size}</div>
+              <div className="stat-card-sub"><Globe size={12} /> Endpoints</div>
+            </div>
+          </div>
+
+          {/* Table */}
+          {loadingTab === 'software' ? (
+            <div className="card" style={{ textAlign: 'center', padding: 40 }}>
+              <div className="spinner" /> Loading software inventory...
+            </div>
+          ) : filteredSoftware.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+              {softwareRecords.length === 0
+                ? 'No software data found. Run a scan to discover software.'
+                : 'No software records match your search.'}
+            </div>
+          ) : (
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <div className="table-container" style={{ border: 'none' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Detection Date</th>
+                      <th>Product</th>
+                      <th>Version</th>
+                      <th>Type</th>
+                      <th>Port</th>
+                      <th>Host</th>
+                      <th>Company Name</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredSoftware.map((sw, idx) => (
+                      <tr key={sw.host + '-' + sw.port + '-' + idx}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Calendar size={13} style={{ color: 'var(--text-muted)' }} />
+                            {formatDate(sw.detectionDate)}
+                          </div>
+                        </td>
+                        <td>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: 13 }}>
+                            {sw.product || '—'}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-secondary)' }}>
+                            {sw.version || '—'}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ padding: '2px 8px', borderRadius: 6, background: 'var(--color-info-bg)', color: 'var(--brand-primary)', fontSize: 12 }}>
+                            {sw.type || '—'}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>
+                            {sw.port}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-secondary)' }}>
+                            {sw.host}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: 13 }}>
+                            {sw.companyName || '—'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </motion.div>
       )}
     </div>
   );

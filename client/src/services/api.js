@@ -14,15 +14,39 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 responses
+// Retry logic for 429 (rate-limited) and network errors
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [1000, 2000, 4000]; // exponential backoff in ms
+
 API.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const config = error.config;
+    if (!config) return Promise.reject(error);
+
+    config.__retryCount = config.__retryCount || 0;
+
+    const is429 = error.response?.status === 429;
+    const isNetworkError = !error.response && error.code !== 'ECONNABORTED';
+    const is500 = error.response?.status >= 500;
+
+    if ((is429 || isNetworkError || is500) && config.__retryCount < MAX_RETRIES) {
+      config.__retryCount += 1;
+      const delay = is429 && error.response?.headers?.['retry-after']
+        ? parseInt(error.response.headers['retry-after'], 10) * 1000
+        : RETRY_DELAYS[config.__retryCount - 1] || 4000;
+
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return API(config);
+    }
+
+    // Handle 401 — token expired
     if (error.response?.status === 401) {
       localStorage.removeItem('qs_token');
       localStorage.removeItem('qs_user');
       window.location.href = '/login';
     }
+
     return Promise.reject(error);
   }
 );
@@ -90,6 +114,7 @@ export const scanVPN = (host) => API.post('/vpn-scan', { host });
 export const getAssetDomains = () => API.get('/asset-inventory/domains');
 export const getAssetSSL = () => API.get('/asset-inventory/ssl');
 export const getAssetIPs = () => API.get('/asset-inventory/ip');
+export const getAssetSoftware = () => API.get('/asset-inventory/software');
 
 export default API;
 

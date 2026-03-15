@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuantumShield Scanner — UML Diagrams</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0e1a;
+            --surface: #111827;
+            --surface-2: #1a2236;
+            --border: #2a3554;
+            --accent: #6366f1;
+            --accent-glow: rgba(99,102,241,.25);
+            --text: #e2e8f0;
+            --text-dim: #94a3b8;
+            --success: #22d3ee;
+            --warning: #f59e0b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── Header ── */
+        .header {
+            text-align: center;
+            padding: 3rem 2rem 2rem;
+            background: linear-gradient(180deg, rgba(99,102,241,.08) 0%, transparent 100%);
+            border-bottom: 1px solid var(--border);
+        }
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1, #22d3ee);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: .5rem;
+        }
+        .header p { color: var(--text-dim); font-size: .95rem; }
+
+        /* ── Tab Navigation ── */
+        .tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            justify-content: center;
+            padding: 1.5rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(10,14,26,.92);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+        }
+        .tab-btn {
+            padding: .6rem 1.2rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text-dim);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: .82rem;
+            font-weight: 500;
+            transition: all .25s;
+        }
+        .tab-btn:hover { border-color: var(--accent); color: var(--text); }
+        .tab-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+            box-shadow: 0 0 18px var(--accent-glow);
+        }
+
+        /* ── Diagram Panels ── */
+        .panel {
+            display: none;
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem 4rem;
+            animation: fadeIn .4s ease;
+        }
+        .panel.active { display: block; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .panel h2 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: .4rem;
+            color: var(--success);
+        }
+        .panel .desc {
+            color: var(--text-dim);
+            font-size: .88rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+
+        .diagram-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 2rem;
+            overflow-x: auto;
+        }
+        .diagram-card .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+        .diagram-card .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* ── Code Block ── */
+        .code-toggle {
+            margin-top: 1rem;
+            display: flex;
+            justify-content: flex-end;
+        }
+        .code-toggle button {
+            padding: .45rem 1rem;
+            font-size: .78rem;
+            font-family: inherit;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: all .2s;
+        }
+        .code-toggle button:hover { color: var(--text); border-color: var(--accent); }
+        .code-block {
+            display: none;
+            margin-top: .8rem;
+            background: #0d1117;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.2rem;
+            overflow-x: auto;
+        }
+        .code-block.show { display: block; }
+        .code-block pre {
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: .78rem;
+            color: #c9d1d9;
+            white-space: pre;
+            line-height: 1.6;
+        }
+
+        /* ── Footer ── */
+        .footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-dim);
+            font-size: .78rem;
+            border-top: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>QuantumShield Scanner — UML Diagrams</h1>
+    <p>Comprehensive UML views derived from the Software Requirements Specification (SRS v2.0)</p>
+</div>
+
+<nav class="tabs">
+    <button class="tab-btn active" onclick="showTab('use-case')">Use Case Diagram</button>
+    <button class="tab-btn" onclick="showTab('class')">Class Diagram</button>
+    <button class="tab-btn" onclick="showTab('sequence')">Sequence Diagram</button>
+    <button class="tab-btn" onclick="showTab('component')">Component Diagram</button>
+    <button class="tab-btn" onclick="showTab('deployment')">Deployment Diagram</button>
+    <button class="tab-btn" onclick="showTab('er')">ER Diagram</button>
+    <button class="tab-btn" onclick="showTab('activity')">Activity Diagram</button>
+    <button class="tab-btn" onclick="showTab('state')">State Diagram</button>
+</nav>
+
+<!-- ════════════════  1. USE CASE DIAGRAM  ════════════════ -->
+<section id="use-case" class="panel active">
+    <h2>Use Case Diagram</h2>
+    <p class="desc">Shows interactions between actors (Security Analyst, Admin, Viewer, CISO) and the system's major use cases.</p>
+    <div class="diagram-card">
+        <pre class="mermaid">
+graph LR
+    subgraph Actors
+        SA["🔍 Security Analyst"]
+        AD["🛡️ Admin"]
+        VW["👁️ Viewer / Compliance"]
+        CISO["📊 CISO"]
+    end
+
+    subgraph QuantumShield["QuantumShield Scanner System"]
+        UC1["Initiate TLS Scan"]
+        UC2["Configure Scan Targets"]
+        UC3["View Dashboard"]
+        UC4["Generate CBOM Report"]
+        UC5["Export Report\n(JSON/CSV/PDF)"]
+        UC6["View Scan History"]
+        UC7["Compare Scans"]
+        UC8["View Asset Inventory"]
+        UC9["View Cyber Rating"]
+        UC10["View PQC Posture"]
+        UC11["Schedule Scans"]
+        UC12["Manage Users (RBAC)"]
+        UC13["Configure Email Reports"]
+        UC14["Manage Email Recipients"]
+        UC15["AI Chatbot Query"]
+        UC16["View Audit Logs"]
+        UC17["Verify CBOM Integrity"]
+        UC18["View PQC Labels"]
+        UC19["On-Demand Report"]
+        UC20["Executive Report"]
+    end
+
+    SA --> UC1
+    SA --> UC2
+    SA --> UC3
+    SA --> UC4
+    SA --> UC5
+    SA --> UC6
+    SA --> UC7
+    SA --> UC8
+    SA --> UC9
+    SA --> UC10
+    SA --> UC15
+    SA --> UC17
+    SA --> UC18
+    SA --> UC19
+
+    AD --> UC1
+    AD --> UC11
+    AD --> UC12
+    AD --> UC13
+    AD --> UC14
+    AD --> UC16
+    AD --> UC3
+
+    VW --> UC3
+    VW --> UC6
+    VW --> UC5
+    VW --> UC8
+    VW --> UC9
+
+    CISO --> UC3
+    CISO --> UC10
+    CISO --> UC20
+    CISO --> UC15
+        </pre>
+    </div>
+    <div class="code-toggle"><button onclick="toggleCode(this)">Show Mermaid Code</button></div>
+    <div class="code-block"><pre>graph LR
+    subgraph Actors
+        SA["🔍 Security Analyst"]
+        AD["🛡️ Admin"]
+        VW["👁️ Viewer / Compliance"]
+        CISO["📊 CISO"]
+    end
+
+    subgraph QuantumShield["QuantumShield Scanner System"]
+        UC1["Initiate TLS Scan"]
+        UC2["Configure Scan Targets"]
+        UC3["View Dashboard"]
+        UC4["Generate CBOM Report"]
+        UC5["Export Report (JSON/CSV/PDF)"]
+        UC6["View Scan History"]
+        UC7["Compare Scans"]
+        UC8["View Asset Inventory"]
+        UC9["View Cyber Rating"]
+        UC10["View PQC Posture"]
+        UC11["Schedule Scans"]
+        UC12["Manage Users (RBAC)"]
+        UC13["Configure Email Reports"]
+        UC14["Manage Email Recipients"]
+        UC15["AI Chatbot Query"]
+        UC16["View Audit Logs"]
+        UC17["Verify CBOM Integrity"]
+        UC18["View PQC Labels"]
+        UC19["On-Demand Report"]
+        UC20["Executive Report"]
+    end
+
+    SA --&gt; UC1
+    SA --&gt; UC2
+    ...
+    AD --&gt; UC11
+    AD --&gt; UC12
+    ...</pre></div>
+</section>
+
+<!-- ════════════════  2. CLASS DIAGRAM  ════════════════ -->
+<section id="class" class="panel">
+    <h2>Class Diagram</h2>
+    <p class="desc">Core domain model showing classes, attributes, methods, and relationships for the QuantumShield system.</p>
+    <div class="diagram-card">
+        <pre class="mermaid">
+classDiagram
+    class User {
+        +String _id
+        +String username
+        +String email
+        +String passwordHash
+        +String role
+        +Boolean mfaEnabled
+        +Date createdAt
+        +login()
+        +logout()
+        +changePassword()
+    }
+
+    class Scan {
+        +String _id
+        +String initiatedBy
+        +String[] targets
+        +String status
+        +Number progress
+        +Object summary
+        +Object config
+        +Date startedAt
+        +Date completedAt
+        +initiateScan()
+        +pauseScan()
+        +getProgress()
+        +getSummary()
+    }
+
+    class CbomRecord {
+        +String _id
+        +String scanId
+        +String host
+        +Number port
+        +Object[] certificates
+        +Object[] cipherSuites
+        +String[] tlsVersions
+        +String keyExchange
+        +String quantumSafetyLabel
+        +String[] recommendations
+        +String integrityHash
+        +Object integrityPayload
+        +generateCBOM()
+        +exportJSON()
+        +exportCSV()
+        +exportPDF()
+        +computeIntegrityHash()
+        +verifyIntegrity()
+    }
+
+    class Certificate {
+        +String subject
+        +String issuer
+        +Date notBefore
+        +Date notAfter
+        +String keyAlgorithm
+        +Number keySize
+        +String signatureAlgorithm
+        +String serialNumber
+        +String[] SANs
+        +String fingerprint
+        +parseCertChain()
+        +isPQCReady()
+    }
+
+    class CipherSuite {
+        +String id
+        +String name
+        +String keyExchange
+        +String bulkEncryption
+        +String macAlgorithm
+        +String prf
+        +Boolean isQuantumSafe
+        +decompose()
+        +classifyQuantumSafety()
+    }
+
+    class QuantumAssessor {
+        +classifyAlgorithm()
+        +computeQuantumScore()
+        +detectPQCAlgorithms()
+        +detectHybridKEX()
+        +generateLabel()
+        +generateRecommendations()
+    }
+
+    class ScanSchedule {
+        +String _id
+        +String name
+        +String[] targets
+        +String frequency
+        +String time
+        +Boolean enabled
+        +Date lastRun
+        +Date nextRun
+        +Number runCount
+        +create()
+        +enable()
+        +disable()
+        +delete()
+    }
+
+    class ReportSchedule {
+        +String _id
+        +String name
+        +String frequency
+        +String format
+        +String[] recipients
+        +Object sections
+        +Boolean enabled
+        +configure()
+        +sendReport()
+        +addRecipient()
+        +removeRecipient()
+    }
+
+    class AuditLog {
+        +String _id
+        +String userId
+        +String action
+        +String details
+        +String ipAddress
+        +Date timestamp
+        +logAction()
+        +queryLogs()
+    }
+
+    class ChatbotAssistant {
+        +String sessionId
+        +queryKnowledgeBase()
+        +generateResponse()
+        +retrieveContext()
+    }
+
+    class AssetInventory {
+        +getDomains()
+        +getSSLCertificates()
+        +getIPAddresses()
+        +getSoftware()
+        +search()
+    }
+
+    class CyberRating {
+        +Number score
+        +String tier
+        +computeScore()
+        +getTierClassification()
+        +getURLScores()
+    }
+
+    User "1" --> "*" Scan : initiates
+    Scan "1" --> "*" CbomRecord : produces
+    CbomRecord "1" --> "*" Certificate : contains
+    CbomRecord "1" --> "*" CipherSuite : contains
+    CbomRecord "1" --> "1" QuantumAssessor : assessed by
+    User "1" --> "*" AuditLog : generates
+    Scan "1" --> "1" AssetInventory : populates
+    Scan "*" --> "1" CyberRating : scored by
+    User "1" --> "*" ScanSchedule : configures
+    User "1" --> "*" ReportSchedule : configures
+    ReportSchedule "1" --> "*" CbomRecord : includes
+    ChatbotAssistant --> CbomRecord : queries
+    ChatbotAssistant --> QuantumAssessor : references
+        </pre>
+    </div>
+    <div class="code-toggle"><button onclick="toggleCode(this)">Show Mermaid Code</button></div>
+    <div class="code-block"><pre>classDiagram
+    class User {
+        +String _id
+        +String username
+        +String email
+        +String passwordHash
+        +String role
+        +Boolean mfaEnabled
+        +Date createdAt
+        +login()
+        +logout()
+    }
+    class Scan { ... }
+    class CbomRecord { ... }
+    class Certificate { ... }
+    class CipherSuite { ... }
+    class QuantumAssessor { ... }
+    ...
+    User "1" --&gt; "*" Scan : initiates
+    Scan "1" --&gt; "*" CbomRecord : produces
+    ...</pre></div>
+</section>
+
+<!-- ════════════════  3. SEQUENCE DIAGRAM  ════════════════ -->
+<section id="sequence" class="panel">
+    <h2>Sequence Diagram — TLS Scan Flow</h2>
+    <p class="desc">End-to-end scan flow: from user initiation through TLS probing, CBOM generation, quantum assessment, to report delivery.</p>
+    <div class="diagram-card">
+        <pre class="mermaid">
+sequenceDiagram
+    actor Analyst as Security Analyst
+    participant UI as React Frontend
+    participant API as Express API
+    participant Scanner as TLS Scanner Engine
+    participant Target as Target Endpoint
+    participant Assessor as Quantum Assessor
+    participant CBOM as CBOM Generator
+    participant DB as MongoDB
+    participant Email as Email Service
+    participant Chatbot as AI Chatbot (RAG)
+    participant VectorDB as Vector KB
+
+    Analyst->>UI: Enter target URL & config
+    UI->>API: POST /api/scan {targets, config}
+    API->>DB: Create scan record (status: running)
+    API-->>UI: scanId + status: queued
+
+    loop For each target endpoint
+        API->>Scanner: Probe target
+        Scanner->>Target: TLS ClientHello (v1.0-1.3)
+        Target-->>Scanner: ServerHello + Certificate Chain
+        Scanner->>Target: Enumerate cipher suites
+        Target-->>Scanner: Supported cipher suites
+        Scanner-->>API: Raw TLS data
+    end
+
+    API->>Assessor: Classify all crypto parameters
+    Assessor->>Assessor: Check NIST PQC OIDs
+    Assessor->>Assessor: Compute quantum score (0-1000)
+    Assessor-->>API: Labels + Recommendations
+
+    API->>CBOM: Generate CBOM records
+    CBOM->>CBOM: Compute SHA-256 integrity hash
+    CBOM-->>API: CBOM JSON + integrity hash
+
+    API->>DB: Store CbomRecords + scan results
+    API->>DB: Log audit entry
+    API-->>UI: Scan complete notification
+
+    UI-->>Analyst: Display dashboard + results
+
+    opt Scheduled Email Report
+        API->>CBOM: Generate PDF report
+        CBOM-->>API: PDF buffer
+        API->>Email: Send to authorized Gmail recipients
+        Email-->>API: Delivery confirmation
+    end
+
+    opt AI Chatbot Query
+        Analyst->>UI: Ask question about results
+        UI->>API: POST /api/chatbot {query}
+        API->>Chatbot: Process query
+        Chatbot->>VectorDB: Retrieve relevant PQC docs
+        VectorDB-->>Chatbot: Context chunks
+        Chatbot->>Chatbot: RAG inference
+        Chatbot-->>API: Generated answer
+        API-->>UI: Chatbot response
+        UI-->>Analyst: Display answer
+    end
+        </pre>
+    </div>
+    <div class="code-toggle"><button onclick="toggleCode(this)">Show Mermaid Code</button></div>
+    <div class="code-block"><pre>sequenceDiagram
+    actor Analyst as Security Analyst
+    participant UI as React Frontend
+    participant API as Express API
+    participant Scanner as TLS Scanner Engine
+    participant Target as Target Endpoint
+    participant Assessor as Quantum Assessor
+    participant CBOM as CBOM Generator
+    participant DB as MongoDB
+    participant Email as Email Service
+    participant Chatbot as AI Chatbot (RAG)
+    participant VectorDB as Vector KB
+
+    Analyst->>UI: Enter target URL
+    UI->>API: POST /api/scan
+    API->>Scanner: Probe target
+    Scanner->>Target: TLS ClientHello
+    Target-->>Scanner: ServerHello + Certs
+    ...
+    API->>DB: Store results
+    API-->>UI: Complete</pre></div>
+</section>
+
+<!-- ════════════════  4. COMPONENT DIAGRAM  ════════════════ -->
+<section id="component" class="panel">
+    <h2>Component Diagram</h2>
+    <p class="desc">High-level architectural components showing the frontend, backend, scanner engine, database, and external integrations.</p>
+    <div class="diagram-card">
+        <pre class="mermaid">
+graph TB
+    subgraph Client["🖥️ Client Layer (React.js SPA)"]
+        direction TB
+        DASH["Dashboard & Analytics"]
+        SCANUI["Scan Configuration UI"]
+        HIST["Scan History & Comparison"]
+        ASSETS["Asset Inventory"]
+        CBOMUI["CBOM Report Viewer"]
+        RATING["Cyber Rating Page"]
+        POSTURE["PQC Posture Dashboard"]
+        REPORTS["Reports Hub\n(Schedule / On-Demand / Executive)"]
+        CHAT["AI Chatbot Widget"]
+        ADMIN["Admin Panel"]
+        LOGIN["Auth / Login"]
+    end
+
+    subgraph Server["⚙️ Server Layer (Node.js + Express)"]
+        direction TB
+        AUTHAPI["Auth API\n(JWT + bcrypt)"]
+        SCANAPI["Scan API"]
+        CBOMAPI["CBOM API"]
+        REPORTAPI["Report API"]
+        SCHEDAPI["Schedule API"]
+        ASSETAPI["Asset Inventory API"]
+        RATINGAPI["Cyber Rating API"]
+        CHATAPI["Chatbot API"]
+        ADMINAPI["Admin API"]
+        AUDITAPI["Audit Logger"]
+    end
+
+    subgraph Engine["🔬 Scanner Engine"]
+        direction TB
+        TLSPROBE["TLS Probe\n(tls/crypto/net modules)"]
+        CERTPARSE["Certificate Parser"]
+        CIPHERENUM["Cipher Suite Enumerator"]
+        VPNPROBE["VPN Endpoint Prober"]
+        ASSESSOR["Quantum Safety Assessor\n(NIST PQC Classifier)"]
+        CBOMGEN["CBOM Generator\n(JSON/CSV/PDF + SHA-256)"]
+        LABELER["Digital Label Issuer"]
+    end
+
+    subgraph External["🌐 External Services"]
+        direction TB
+        TARGET["Target Banking Endpoints\n(Web/API/VPN)"]
+        GMAIL["Gmail / SMTP\n(Email Delivery)"]
+        LLM["LLM API\n(OpenAI / RAG Inference)"]
+    end
+
+    subgraph Data["🗄️ Data Layer"]
+        direction TB
+        MONGO[("MongoDB\n(CBOM, Scans, Users,\nAudit Logs)")]
+        VECTOR[("Vector KB\n(PQC/Crypto Embeddings)")]
+    end
+
+    Client --> Server
+    SCANAPI --> TLSPROBE
+    TLSPROBE --> TARGET
+    TLSPROBE --> CERTPARSE
+    TLSPROBE --> CIPHERENUM
+    SCANAPI --> VPNPROBE
+    VPNPROBE --> TARGET
+    SCANAPI --> ASSESSOR
+    ASSESSOR --> CBOMGEN
+    CBOMGEN --> LABELER
+    REPORTAPI --> GMAIL
+    CHATAPI --> LLM
+    LLM --> VECTOR
+    Server --> MONGO
+    CBOMGEN --> MONGO
+    AUDITAPI --> MONGO
+        </pre>
+    </div>
+    <div class="code-toggle"><button onclick="toggleCode(this)">Show Mermaid Code</button></div>
+    <div class="code-block"><pre>graph TB
+    subgraph Client["Client Layer (React.js SPA)"]
+        DASH["Dashboard"]
+        SCANUI["Scan Config UI"]
+        ...
+    end
+    subgraph Server["Server Layer (Node.js + Express)"]
+        AUTHAPI["Auth API"]
+        SCANAPI["Scan API"]
+        ...
+    end
+    subgraph Engine["Scanner Engine"]
+        TLSPROBE["TLS Probe"]
+        ...
+    end
+    Client --&gt; Server
+    SCANAPI --&gt; TLSPROBE
+    ...</pre></div>
+</section>
+
+<!-- ════════════════  5. DEPLOYMENT DIAGRAM  ════════════════ -->
+<section id="deployment" class="panel">
+    <h2>Deployment Diagram</h2>
+    <p class="desc">Infrastructure topology showing containerized deployment with Docker, Nginx reverse proxy, and MongoDB.</p>
+    <div class="diagram-card">
+        <pre class="mermaid">
+graph TB
+    subgraph Internet["☁️ Internet"]
+        BROWSER["🌐 User Browser\n(Chrome 120+ / Firefox 120+)"]
+        TARGETS["🏦 Public Banking Endpoints\n(TLS/HTTPS)"]
+        GMAILSVC["📧 Gmail SMTP\n(Port 587 + STARTTLS)"]
+        LLMAPI["🤖 LLM API Endpoint\n(OpenAI)"]
+    end
+
+    subgraph DMZ["🔒 Bank DMZ / Cloud Host"]
+        subgraph Docker["🐳 Docker Environment"]
+            NGINX["Nginx Reverse Proxy\n(TLS 1.2+ Termination)\nPort 443"]
+
+            subgraph AppContainer["📦 App Container"]
+                REACT["React SPA\n(Build / Static)"]
+                EXPRESS["Express.js API Server\nPort 5000"]
+                SCANNER["Scanner Engine\n(Node.js tls/crypto)"]
+                CHATBOT["RAG Chatbot Module\n(LangChain.js)"]
+            end
+
+            subgraph DBContainer["📦 Database Container"]
+                MONGODB[("MongoDB 7.0+\nPort 27017\n+ Vector Search")]
+            end
+        end
+    end
+
+    BROWSER -->|"HTTPS :443"| NGINX
+    NGINX -->|"Proxy Pass"| REACT
+    NGINX -->|"API /api/*"| EXPRESS
+    EXPRESS --> SCANNER
+    EXPRESS --> CHATBOT
+    SCANNER -->|"TLS Handshake\n(Outbound)"| TARGETS
+    EXPRESS -->|"SMTP :587"| GMAILSVC
+    CHATBOT -->|"HTTPS"| LLMAPI
+    EXPRESS --> MONGODB
+    CHATBOT --> MONGODB
+
+    style DMZ fill:#0f172a,stroke:#334155,color:#e2e8f0
+    style Docker fill:#1a2236,stroke:#3b82f6,color:#e2e8f0
+    style AppContainer fill:#1e293b,stroke:#6366f1,color:#e2e8f0
+    style DBContainer fill:#1e293b,stroke:#22d3ee,color:#e2e8f0
+        </pre>
+    </div>
+    <div class="code-toggle"><button onclick="toggleCode(this)">Show Mermaid Code</button></div>
+    <div class="code-block"><pre>graph TB
+    subgraph Internet
+        BROWSER["User Browser"]
+        TARGETS["Banking Endpoints"]
+        GMAILSVC["Gmail SMTP"]
+    end
+    subgraph DMZ["Bank DMZ"]
+        subgraph Docker
+            NGINX["Nginx Reverse Proxy"]
+            subgraph App["App Container"]
+                EXPRESS["Express.js"]
+                SCANNER["Scanner Engine"]
+            end
+            MONGODB[("MongoDB 7.0+")]
+        end
+    end
+    BROWSER --&gt; NGINX --&gt; EXPRESS
+    SCANNER --&gt; TARGETS
+    EXPRESS --&gt; MONGODB</pre></div>
+</section>
+
+<!-- ════════════════  6. ER DIAGRAM  ════════════════ -->
+<section id="er" class="panel">
+    <h2>Entity-Relationship Diagram</h2>
+    <p class="desc">MongoDB collections and their field-level relationships.</p>
+    <div class="diagram-card">
+        <pre class="mermaid">
+erDiagram
+    USERS {
+        ObjectId _id PK
+        string username
+        string email
+        string passwordHash
+        string role
+        boolean mfaEnabled
+        date createdAt
+    }
+
+    SCANS {
+        ObjectId _id PK
+        ObjectId initiatedBy FK
+        array targets
+        string status
+        number progress
+        object summary
+        object config
+        date startedAt
+        date completedAt
+    }
+
+    CBOM_RECORDS {
+        ObjectId _id PK
+        ObjectId scanId FK
+        string host
+        number port
+        array certificates
+        array cipherSuites
+        array tlsVersions
+        string keyExchange
+        string quantumSafetyLabel
+        array recommendations
+        string integrityHash
+        object integrityPayload
+    }
+
+    AUDIT_LOGS {
+        ObjectId _id PK
+        ObjectId userId FK
+        string username
+        string action
+        string details
+        string ipAddress
+        date timestamp
+    }
+
+    LABELS {
+        ObjectId _id PK
+        ObjectId cbomRecordId FK
+        string labelType
+        date issuedAt
+        date validUntil
+    }
+
+    SCHEDULED_SCANS {
+        ObjectId _id PK
+        string name
+        array targets
+        string frequency
+        string time
+        boolean enabled
+        date lastRun
+        date nextRun
+        number runCount
+        ObjectId createdBy FK
+    }
+
+    REPORT_SCHEDULES {
+        ObjectId _id PK
+        string name
+        string frequency
+        string format
+        array recipients
+        object sections
+        boolean enabled
+    }
+
+    CHATBOT_KNOWLEDGE {
+        ObjectId _id PK
+        string content
+        string source
+        string category
+        array embedding
+    }
+
+    USERS ||--o{ SCANS : "initiates"
+    USERS ||--o{ AUDIT_LOGS : "generates"
+    USERS ||--o{ SCHEDULED_SCANS : "creates"
+    SCANS ||--o{ CBOM_RECORDS : "produces"
+    CBOM_RECORDS ||--o| LABELS : "awards"
+    REPORT_SCHEDULES }o--o{ CBOM_RECORDS : "includes"
+        </pre>
+    </div>
+    <div class="code-toggle"><button onclick="toggleCode(this)">Show Mermaid Code</button></div>
+    <div class="code-block"><pre>erDiagram
+    USERS { ObjectId _id PK; string username; ... }
+    SCANS { ObjectId _id PK; ObjectId initiatedBy FK; ... }
+    CBOM_RECORDS { ObjectId _id PK; ObjectId scanId FK; ... }
+    AUDIT_LOGS { ... }
+    LABELS { ... }
+    SCHEDULED_SCANS { ... }
+    REPORT_SCHEDULES { ... }
+    CHATBOT_KNOWLEDGE { ... }
+
+    USERS ||--o{ SCANS : "initiates"
+    SCANS ||--o{ CBOM_RECORDS : "produces"
+    ...</pre></div>
+</section>
+
+<!-- ════════════════  7. ACTIVITY DIAGRAM  ════════════════ -->
+<section id="activity" class="panel">
+    <h2>Activity Diagram — Scan Workflow</h2>
+    <p class="desc">Complete activity flow from target input through scanning, assessment, CBOM generation, labeling, and reporting.</p>
+    <div class="diagram-card">
+        <pre class="mermaid">
+flowchart TD
+    A([Start]) --> B["User enters target\n(URL / IP / CSV / CIDR)"]
+    B --> C{"Valid input?"}
+    C -- No --> D["Show validation error"]
+    D --> B
+    C -- Yes --> E["Create scan record\n(status: queued)"]
+    E --> F["Initialize TLS Probe"]
+
+    F --> G{"More targets?"}
+    G -- Yes --> H["Send TLS ClientHello\n(v1.0, 1.1, 1.2, 1.3)"]
+    H --> I{"Endpoint\nreachable?"}
+    I -- No --> J["Log failure\n(retry up to 3x)"]
+    J --> K{"Retries\nexhausted?"}
+    K -- No --> H
+    K -- Yes --> L["Mark target as FAILED"]
+    L --> G
+
+    I -- Yes --> M["Receive ServerHello\n+ Certificate Chain"]
+    M --> N["Extract Certificates"]
+    N --> O["Enumerate Cipher Suites"]
+    O --> P["Detect Key Exchange\nAlgorithm"]
+    P --> Q["Detect Protocol\nVersions"]
+    Q --> G
+
+    G -- No --> R["Quantum Safety Assessment"]
+    R --> S["Check NIST PQC OIDs\n(FIPS 203/204/205/206)"]
+    S --> T["Classify each element:\nQuantum-Safe / Hybrid / Vulnerable"]
+    T --> U["Compute Quantum Score\n(0-1000)"]
+    U --> V["Generate Recommendations"]
+
+    V --> W["Generate CBOM Record"]
+    W --> X["Compute SHA-256\nIntegrity Hash"]
+    X --> Y{"Score ≥ PQC Ready\nthreshold?"}
+    Y -- Yes --> Z["Award PQC Ready\nDigital Label"]
+    Y -- No --> AA["Flag as\nNot PQC Ready"]
+    Z --> AB["Store in MongoDB"]
+    AA --> AB
+
+    AB --> AC["Log Audit Entry"]
+    AC --> AD["Update Dashboard"]
+    AD --> AE{"Scheduled\nreport?"}
+    AE -- Yes --> AF["Generate PDF Report"]
+    AF --> AG["Email to authorized\nGmail recipients"]
+    AG --> AH([End])
+    AE -- No --> AH
+        </pre>
+    </div>
+    <div class="code-toggle"><button onclick="toggleCode(this)">Show Mermaid Code</button></div>
+    <div class="code-block"><pre>flowchart TD
+    A([Start]) --> B["User enters target"]
+    B --> C{"Valid input?"}
+    C -- No --> D["Show error"] --> B
+    C -- Yes --> E["Create scan record"]
+    E --> F["Init TLS Probe"]
+    F --> G{"More targets?"}
+    G -- Yes --> H["TLS ClientHello"]
+    H --> I{"Reachable?"} ...
+    G -- No --> R["Quantum Assessment"]
+    R --> S["Check PQC OIDs"]
+    ...
+    AB --> AC["Audit Log"]
+    AC --> AD["Update Dashboard"]
+    AD --> AH([End])</pre></div>
+</section>
+
+<!-- ════════════════  8. STATE DIAGRAM  ════════════════ -->
+<section id="state" class="panel">
+    <h2>State Diagram — Scan Lifecycle</h2>
+    <p class="desc">States a scan transitions through from creation to completion or failure.</p>
+    <div class="diagram-card">
+        <pre class="mermaid">
+stateDiagram-v2
+    [*] --> Queued : Scan initiated
+    Queued --> Validating : Validate targets
+    Validating --> Invalid : Validation failed
+    Invalid --> [*]
+
+    Validating --> Running : Targets valid
+    Running --> Probing : For each target
+    Probing --> HandshakeSuccess : TLS handshake OK
+    Probing --> HandshakeFailed : Connection failed
+    HandshakeFailed --> Retrying : Retry (max 3)
+    Retrying --> Probing : Retry attempt
+    Retrying --> TargetFailed : Retries exhausted
+    TargetFailed --> Running : Continue next target
+
+    HandshakeSuccess --> Extracting : Parse certs + ciphers
+    Extracting --> Assessing : Quantum classification
+    Assessing --> Labeling : Compute score + label
+    Labeling --> Running : Store CBOM + next target
+
+    Running --> Completing : All targets done
+    Completing --> GeneratingReport : Build CBOM report
+    GeneratingReport --> HashingIntegrity : SHA-256 hash
+    HashingIntegrity --> Completed : Save to DB
+
+    Completed --> [*]
+
+    Running --> Failed : Unrecoverable error
+    Failed --> [*]
+
+    note right of Assessing
+        Uses NIST FIPS 203/204/205/206
+        OID matching for PQC detection
+    end note
+
+    note right of Completed
+        Triggers: Dashboard refresh,
+        Audit log, Optional email report
+    end note
+        </pre>
+    </div>
+    <div class="code-toggle"><button onclick="toggleCode(this)">Show Mermaid Code</button></div>
+    <div class="code-block"><pre>stateDiagram-v2
+    [*] --> Queued : Scan initiated
+    Queued --> Validating : Validate targets
+    Validating --> Running : Targets valid
+    Running --> Probing : For each target
+    Probing --> HandshakeSuccess : TLS OK
+    Probing --> HandshakeFailed : Failed
+    HandshakeFailed --> Retrying
+    HandshakeSuccess --> Extracting
+    Extracting --> Assessing
+    Assessing --> Labeling
+    Running --> Completing : All done
+    Completing --> Completed
+    Completed --> [*]</pre></div>
+</section>
+
+<footer class="footer">
+    QuantumShield Scanner — UML Diagrams &bull; Generated from SRS v2.0 &bull; March 2026
+</footer>
+
+<script>
+    // Initialize Mermaid
+    mermaid.initialize({
+        startOnLoad: true,
+        theme: 'dark',
+        themeVariables: {
+            darkMode: true,
+            background: '#111827',
+            primaryColor: '#6366f1',
+            primaryTextColor: '#e2e8f0',
+            primaryBorderColor: '#4f46e5',
+            lineColor: '#6366f1',
+            secondaryColor: '#1e293b',
+            tertiaryColor: '#0f172a',
+            noteBkgColor: '#1e293b',
+            noteTextColor: '#e2e8f0',
+            noteBorderColor: '#6366f1',
+            actorBkg: '#1e293b',
+            actorTextColor: '#e2e8f0',
+            actorBorder: '#6366f1',
+            signalColor: '#e2e8f0',
+            labelBoxBkgColor: '#1e293b',
+            labelTextColor: '#e2e8f0',
+            loopTextColor: '#22d3ee',
+            activationBorderColor: '#6366f1',
+            activationBkgColor: '#312e81',
+            sequenceNumberColor: '#fff',
+            edgeLabelBackground: '#1e293b',
+            clusterBkg: '#0f172a',
+            clusterBorder: '#334155',
+            fontSize: '14px'
+        },
+        flowchart: { curve: 'basis', padding: 20 },
+        sequence: { mirrorActors: false, messageMargin: 40 },
+        class: { defaultRenderer: 'dagre-wrapper' }
+    });
+
+    // Tab switching
+    function showTab(id) {
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        event.target.classList.add('active');
+    }
+
+    // Toggle code block visibility
+    function toggleCode(btn) {
+        const block = btn.parentElement.nextElementSibling;
+        block.classList.toggle('show');
+        btn.textContent = block.classList.contains('show') ? 'Hide Mermaid Code' : 'Show Mermaid Code';
+    }
+</script>
+
+</body>
+</html>

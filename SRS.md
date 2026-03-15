@@ -6,8 +6,8 @@
 
 ---
 
-**Document Version:** 1.0  
-**Date:** 10th March 2026  
+**Document Version:** 2.0  
+**Date:** 14th March 2026  
 **Team Name:** \<Team Name\>  
 **Project Name:** QuantumShield Scanner  
 
@@ -42,6 +42,7 @@ The purpose of this Software Requirements Specification (SRS) document is to ide
    - 4.2 [I.D.E. (Integrated Development Environment)](#42-ide-integrated-development-environment)
    - 4.3 [Database Management Software](#43-database-management-software)
 5. [Security Requirements](#5-security-requirements)
+6. [Revision History](#6-revision-history)
 
 ---
 
@@ -107,18 +108,33 @@ The **QuantumShield Scanner** is a **standalone web application** that operates 
 2. Passively extracting negotiated cryptographic parameters.
 3. Analyzing the extracted data against a knowledge base of quantum-vulnerable and quantum-safe algorithms.
 4. Generating structured CBOM reports with quantum-safety labels.
+5. Maintaining a comprehensive **Asset Inventory** of all discovered domains, SSL certificates, IP addresses/subnets, and software components.
+6. Computing an enterprise-level **Cyber Rating** score (0–1000) with tier-based classification (Elite-PQC / Standard / Legacy).
+7. Presenting a **PQC Posture Dashboard** with compliance grading, risk heatmaps, and per-asset improvement recommendations.
+8. Delivering **Scheduled Reports** via email to verified and authorized Gmail recipients at configurable intervals (daily, weekly, monthly, quarterly).
+9. Providing a **RAG-based AI Chatbot Assistant** to help users understand scan results, CBOM data, PQC standards, and navigate the application.
 
 **System Context Diagram:**
 
 ```
-┌───────────────────┐       TLS Handshake        ┌──────────────────────┐
-│                   │ ◄──────────────────────────►│  Target Public-Facing│
-│  QuantumShield    │    Certificate Exchange      │  Banking Application │
-│  Scanner          │ ◄──────────────────────────►│  (Web/API/VPN)       │
-│  (Web Application)│    Cipher Negotiation        │                      │
-│                   │ ◄──────────────────────────►│                      │
-└────────┬──────────┘                              └──────────────────────┘
-         │
+                                                    ┌──────────────────────┐
+┌───────────────────┐       TLS Handshake           │  Target Public-Facing│
+│                   │ ◄────────────────────────────►│  Banking Application │
+│  QuantumShield    │    Certificate Exchange        │  (Web/API/VPN)       │
+│  Scanner          │ ◄────────────────────────────►│                      │
+│  (Web Application)│    Cipher Negotiation          └──────────────────────┘
+│                   │
+│  ┌─────────────┐  │    SMTP/Gmail API              ┌──────────────────────┐
+│  │ Report      │──│──────────────────────────────►│  Authorized Gmail    │
+│  │ Scheduler   │  │    Scheduled Reports           │  Recipients          │
+│  └─────────────┘  │                                └──────────────────────┘
+│                   │
+│  ┌─────────────┐  │    RAG Inference               ┌──────────────────────┐
+│  │ AI Chatbot  │──│──────────────────────────────►│  Vector Knowledge    │
+│  │ Assistant   │  │    Context Retrieval           │  Base (PQC/Crypto)   │
+│  └─────────────┘  │                                └──────────────────────┘
+│                   │
+└────────┬──────────┘
          │  Stores Results
          ▼
 ┌───────────────────┐
@@ -147,8 +163,17 @@ The major functions of the QuantumShield Scanner are:
 | **PF-10** | Digital Labeling | Award a **"PQC Ready"** / **"Fully Quantum Safe"** digital certificate/label to assets using NIST-standardized PQC algorithms; flag non-compliant assets as **"Not PQC Ready"** |
 | **PF-11** | Remediation Recommendations | Generate specific, actionable migration recommendations for each non-PQC-ready asset |
 | **PF-12** | Dashboard & Visualization | Provide a real-time dashboard showing scan results, quantum-safety distribution, risk heatmaps, and trend analysis |
-| **PF-13** | Scan History & Comparison | Store historical scan results and allow comparison between scans to track PQC migration progress |
+| **PF-13** | Scan History & Comparison | Store historical scan results and allow side-by-side comparison between any two scans to track PQC migration progress with per-host score deltas |
 | **PF-14** | Report Export | Export CBOM and assessment reports in JSON, CSV, and PDF formats |
+| **PF-15** | Asset Inventory | Maintain a comprehensive inventory of all discovered assets organized into four categories: **Domains** (domain name, registrar, registration date, company), **SSL Certificates** (SHA fingerprint, common name, certificate authority, validity), **IP Addresses/Subnets** (IP, ports, ASN, netname, geolocation, company), and **Software** (product name, version, type, host) |
+| **PF-16** | Cyber Rating | Compute an enterprise-level PQC Cyber-Rating Score on a 0–1000 scale with tier classification: **Elite-PQC** (>700), **Standard** (400–700), **Legacy** (<400). Includes URL-level scoring with searchable breakdown per endpoint |
+| **PF-17** | PQC Posture Dashboard | Provide a PQC compliance dashboard with classification grades (Elite-PQC, Standard, Legacy, Critical), bar/pie charts for asset distribution, a visual risk heatmap, and per-asset drill-down with improvement recommendations |
+| **PF-18** | Scheduled Email Reporting | Allow administrators to configure recurring report schedules (daily, weekly, monthly, quarterly) that auto-generate and deliver PQC assessment reports via email (SMTP/Gmail API) to verified and authorized Gmail recipients. Reports include configurable sections: Executive Summary, Technical Details, PQC Posture, and Cyber Rating |
+| **PF-19** | On-Demand Reporting | Provide instant report generation and export with filters (status, search), bulk multi-scan selection, and batch export in PDF, CSV, or JSON formats |
+| **PF-20** | Executives Reporting | Generate high-level executive dashboards with KPIs (total endpoints, PQC readiness %, vulnerabilities, score range), PQC score trend charts, risk distribution pie charts, classification grade breakdown, TLS protocol distribution, and strategic recommendations with priority levels |
+| **PF-21** | RAG-based AI Chatbot Assistant | Provide an in-application AI chatbot powered by Retrieval-Augmented Generation (RAG) that assists users in understanding scan results, CBOM data, PQC standards (FIPS 203/204/205/206), remediation recommendations, and general application navigation. The chatbot retrieves context from a vector knowledge base of PQC/cryptographic documentation |
+| **PF-22** | CBOM Integrity Verification | Compute SHA-256 integrity hashes on CBOM records using key verifiable fields (host, port, certificate fingerprint, serial, issuer, CN, TLS version, cipher, key algorithm, quantum score/label, timestamp) to ensure tamper-proof audit trails |
+| **PF-23** | Scan Scheduling & Management | Allow administrators to create, enable/disable, and delete scheduled scans with configurable frequency (daily, weekly, monthly), target lists, and execution time. Track run count, last run, and next run timestamps |
 
 ### 2.3 User Classes and Characteristics
 
@@ -278,6 +303,20 @@ The operating environment for the **QuantumShield Scanner** is as listed below:
 | **FR-23** | Dashboard Overview | The system shall provide a dashboard showing: total assets scanned, PQC-ready count, non-PQC-ready count, hybrid count, risk distribution charts, and recent scan activity. | High |
 | **FR-24** | User Authentication | The system shall require user authentication (username/password + optional MFA) before granting access to any functionality. | High |
 | **FR-25** | Role-Based Access Control | The system shall enforce RBAC: Admin (full access), Analyst (scan + view), Viewer (read-only reports). | High |
+| **FR-26** | Asset Inventory — Domains | The system shall maintain a searchable inventory of all discovered domains with detection date, domain name, registration date, registrar, and company name extracted from scan results. | High |
+| **FR-27** | Asset Inventory — SSL Certificates | The system shall catalog all discovered SSL certificates with SHA fingerprint, validity dates, common name, company name, and certificate authority. | High |
+| **FR-28** | Asset Inventory — IP Addresses/Subnets | The system shall track all discovered IP addresses with associated ports, subnet (/24), ASN, netname, geolocation, and owning company via DNS resolution. | High |
+| **FR-29** | Asset Inventory — Software | The system shall identify and catalog software/services detected on scanned endpoints including product name, version, type (e.g., web server, TLS library), port, and host. | Medium |
+| **FR-30** | Cyber Rating Score | The system shall compute an enterprise-level PQC Cyber-Rating Score on a 0–1000 scale based on the average quantum-safety scores of all scanned endpoints, with tier classification: **Elite-PQC** (>700), **Standard** (400–700), **Legacy** (<400). | High |
+| **FR-31** | URL-Level Scoring | The system shall provide a searchable, per-endpoint breakdown of PQC scores with individual tier classification and quantum-safety labels. | Medium |
+| **FR-32** | PQC Posture Compliance | The system shall present a PQC compliance dashboard with classification grades (Elite-PQC, Standard, Legacy, Critical), distribution charts (bar and pie), a visual risk heatmap, and per-asset drill-down with actionable improvement recommendations. | High |
+| **FR-33** | Scheduled Email Reporting | The system shall allow administrators to configure recurring report schedules (daily, weekly, monthly, quarterly) with configurable report sections (Executive Summary, Technical Details, PQC Posture, Cyber Rating) and deliver auto-generated reports via SMTP/Gmail API to a list of verified and authorized Gmail recipients. | High |
+| **FR-34** | Email Recipient Authorization | The system shall maintain a whitelist of authorized email recipients. Only verified Gmail addresses on this whitelist shall receive scheduled reports. Administrators can add/remove recipients. | High |
+| **FR-35** | On-Demand Report Generation | The system shall allow users to instantly generate and export reports for any completed scan with filters (status, target search), bulk multi-scan selection, and batch export in PDF, CSV, or JSON formats. | High |
+| **FR-36** | Executives Reporting | The system shall provide executive-level dashboards with KPIs (total endpoints, PQC readiness percentage, vulnerability count, score range), PQC score trend charts over time, risk distribution charts, classification grade breakdowns, TLS protocol distribution, and auto-generated strategic recommendations with priority levels (Critical, High, Medium, Info). | High |
+| **FR-37** | RAG-based AI Chatbot Assistant | The system shall provide a persistent in-application chatbot interface accessible from all pages. The chatbot shall use Retrieval-Augmented Generation (RAG) to query a vector knowledge base of PQC standards (FIPS 203/204/205/206), cryptographic best practices, CBOM documentation, and application help content to provide contextual answers. | High |
+| **FR-38** | CBOM Integrity Verification | The system shall compute a SHA-256 integrity hash for each CBOM record using key verifiable fields (host, port, certificate fingerprint, serial number, issuer, common name, TLS version, cipher name, key algorithm, key size, quantum score, quantum label, and scan timestamp). The hash and its payload shall be stored alongside the CBOM record for tamper detection. | High |
+| **FR-39** | Scan Comparison | The system shall allow users to compare any two scans side-by-side, showing per-host score deltas, new/removed endpoints, and changes in quantum-safety labels, cipher suite counts, and TLS versions. | Medium |
 
 ### 3.2 External Interface Requirements
 
@@ -289,11 +328,18 @@ The operating environment for the **QuantumShield Scanner** is as listed below:
 | **Dashboard** | Main landing page after login. Displays real-time summary cards (Total Assets, PQC Ready, Not Ready, Hybrid), risk distribution pie chart, recent scan timeline, and quick-action buttons for new scans. |
 | **Scan Configuration Page** | Form to input target endpoints (manual entry, CSV upload, CIDR range), select port range, configure scan options (rate limiting, timeout), and initiate scan. |
 | **Scan Progress View** | Real-time progress indicator showing scan status per target (queued, scanning, completed, failed). |
+| **Scan History Page** | Chronological list of all past scans with status, target count, and timestamps. Allows navigation to detailed results. |
 | **CBOM Report View** | Detailed, tabular view of the generated CBOM for each scanned endpoint. Filterable by quantum-safety status, algorithm type, TLS version. |
 | **Asset Detail Page** | Per-asset drill-down showing full certificate chain, all supported cipher suites, key exchange details, quantum-safety label, and specific remediation recommendations. |
+| **Asset Inventory Page** | Tabbed interface with four categories: **Domains** (domain name, registrar, company), **SSL Certificates** (fingerprint, CA, validity), **IP Addresses/Subnets** (IP, ports, ASN, geolocation), **Software** (product, version, type). Each tab includes search/filter, summary statistics, and data tables. |
+| **CBOM Dashboard** | Centralized CBOM analytics view with aggregated statistics, quantum-safety distribution charts, and summary of all CBOM records across scans. |
+| **Cyber Rating Page** | Enterprise-level PQC Cyber-Rating dashboard with a gauge chart (0–1000), tier badge (Elite-PQC / Standard / Legacy), score distribution bar chart across tiers, and a searchable URL-level score table with per-endpoint tier and label. |
+| **PQC Posture Dashboard** | PQC compliance view with top stats bar (Elite-PQC %, Standard %, Legacy %, Critical count), bar/pie charts for asset classification grades, visual risk heatmap, and a clickable assets table with detail panel showing TLS info, score, signature, PQC support status, and improvement recommendations. |
 | **Label/Certificate View** | Displays the awarded digital "PQC Ready" or "Fully Quantum Safe" label for qualifying assets. Downloadable as a digital certificate (PDF/JSON). |
-| **Reports Page** | List of all generated reports with filters by date, scan ID, and status. Export buttons for JSON, CSV, XML, and PDF. |
+| **Reports Hub** | Tabbed reports interface with three sub-views: (1) **Schedule Reporting** — configure recurring auto-generated reports with frequency, format, email recipients, and toggleable report sections; (2) **On-Demand Reporting** — instant export with filters, bulk selection, and batch download in PDF/CSV/JSON; (3) **Executives Reporting** — high-level KPIs, PQC score trend charts, risk distribution, classification breakdown, and strategic recommendations with exportable executive PDF. |
+| **Schedule Manager** | Interface for creating, viewing, enabling/disabling, and deleting scheduled scans with target configuration, frequency selection, and run history tracking. |
 | **Admin Panel** | User management (CRUD), system configuration, scan scheduling, and audit log viewer. |
+| **AI Chatbot Assistant** | Persistent floating chatbot widget accessible from all pages. Provides a conversational interface for asking questions about scan results, CBOM data, PQC standards, remediation steps, and application usage. Powered by RAG with context retrieval from a vector knowledge base. |
 
 The application shall provide a **web-based user interface** accessible via HTML5-compliant browsers (Google Chrome 120+, Firefox 120+, Microsoft Edge 120+). No desktop client or mobile application is required.
 
@@ -313,9 +359,11 @@ No specialized hardware (e.g., HSMs, custom NICs, cryptographic accelerators) is
 | **TLS Protocol (RFC 8446, RFC 5246)** | The scanner communicates with target endpoints using standard TLS protocol handshakes. It acts as a TLS client initiating connections. |
 | **HTTP/HTTPS (RFC 7230-7235)** | API endpoints and web servers are probed over HTTP/HTTPS. The scanner's own web interface is served over HTTPS. |
 | **MongoDB Wire Protocol** | The application communicates with MongoDB using the MongoDB Node.js driver over the MongoDB Wire Protocol (default port 27017). |
-| **REST API** | The scanner exposes a RESTful API for programmatic access: `POST /api/scan` (initiate scan), `GET /api/results/:id` (fetch results), `GET /api/cbom/:id` (fetch CBOM), `GET /api/reports` (list reports). |
+| **REST API** | The scanner exposes a RESTful API for programmatic access: `POST /api/scan` (initiate scan), `GET /api/results/:id` (fetch results), `GET /api/cbom/:id` (fetch CBOM), `GET /api/reports` (list reports), `GET /api/scan/compare/:id1/:id2` (compare scans), `GET /api/asset-inventory/*` (asset inventory endpoints). |
 | **IPSec IKEv2 (RFC 7296)** | For VPN endpoint scanning, the system initiates IKEv2 `IKE_SA_INIT` exchanges to detect VPN cipher configurations. |
 | **PDF Generation** | The system uses a PDF rendering library (e.g., Puppeteer/PDFKit) to generate printable reports and digital labels. |
+| **SMTP / Gmail API** | The system uses SMTP (port 587 with STARTTLS) or the Gmail API (OAuth 2.0) to deliver scheduled reports to authorized Gmail recipients. Email sending is configurable via environment variables. |
+| **RAG / LLM API** | The AI Chatbot Assistant communicates with a Large Language Model (LLM) API endpoint for natural language understanding and generation. Context is retrieved from a vector knowledge base (e.g., using embeddings stored in MongoDB Atlas Vector Search or a dedicated vector database). |
 
 ### 3.3 System Features
 
@@ -352,6 +400,36 @@ No specialized hardware (e.g., HSMs, custom NICs, cryptographic accelerators) is
 - Role-Based Access Control (Admin, Analyst, Viewer)
 - Session management with configurable timeout
 - Comprehensive audit trail for all user actions
+
+#### SF-06: Asset Inventory & Discovery
+- Automated extraction of domains, SSL certificates, IP addresses/subnets, and software from scan results
+- Organized tabbed views with search, filter, and summary statistics per category
+- Domain WHOIS-style information (registrar, registration date, company)
+- SSL certificate tracking (SHA fingerprint, certificate authority, validity period)
+- IP and subnet mapping with ASN, netname, geolocation, and company ownership
+- Software/service identification with product name, version, and type classification
+- Background prefetching across tabs for responsive user experience
+
+#### SF-07: Advanced Reporting & Scheduled Email Delivery
+- **Scheduled Reporting**: Configurable recurring report schedules (daily, weekly, monthly, quarterly) with selectable report sections (Executive Summary, Technical Details, PQC Posture, Cyber Rating)
+- **Email Delivery**: Automated delivery of scheduled reports via SMTP/Gmail API to verified and authorized Gmail recipients with configurable recipient lists
+- **On-Demand Reporting**: Instant report generation with status/target filters, bulk multi-scan selection, and batch export (PDF, CSV, JSON)
+- **Executives Reporting**: High-level executive dashboards with enterprise PQC score, KPI cards with trend indicators, PQC score trend line charts, risk distribution pie charts, classification grade bar charts, TLS protocol distribution, and auto-generated key findings and strategic recommendations
+- Report audit logging for compliance (all exports are tracked)
+
+#### SF-08: RAG-based AI Chatbot Assistant
+- Persistent floating chatbot widget accessible from all application pages
+- Retrieval-Augmented Generation (RAG) architecture with vector knowledge base
+- Knowledge base covering: NIST PQC standards (FIPS 203/204/205/206), cryptographic algorithm explanations, CBOM data interpretation, remediation best practices, and application help/navigation
+- Contextual awareness of current page and user's scan data
+- Natural language question-answering for technical and non-technical users
+- Conversation history within session for follow-up questions
+
+#### SF-09: Data Integrity & Tamper Detection
+- SHA-256 integrity hash computation on every CBOM record
+- Hash covers key verifiable fields: host, port, certificate fingerprint, serial, issuer, CN, TLS version, cipher, key algorithm, key size, quantum score, quantum label, and timestamp
+- Integrity payload stored alongside hash for independent verification
+- Supports audit and compliance requirements for tamper-proof cryptographic assessment records
 
 ### 3.4 Non-functional Requirements
 
@@ -398,12 +476,16 @@ No specialized hardware (e.g., HSMs, custom NICs, cryptographic accelerators) is
 |---|---|---|---|
 | **Frontend Framework** | React.js | 18.x | Single-Page Application (SPA) for scanner dashboard, scan configuration, and report visualization |
 | **Frontend Styling** | Vanilla CSS + CSS Variables | CSS3 | Premium, modern UI with glassmorphism, dark mode, and micro-animations |
-| **Frontend Charts** | Chart.js / Recharts | Latest | Data visualization for quantum-readiness distribution, scan trends, and risk heatmaps |
+| **Frontend Charts** | Chart.js / Recharts | Latest | Data visualization for quantum-readiness distribution, scan trends, risk heatmaps, Cyber Rating gauges, PQC Posture compliance charts, and executive reporting dashboards |
+| **Frontend Animation** | Framer Motion | Latest | Smooth page transitions, component enter/exit animations, and micro-interactions for premium user experience |
 | **Backend Runtime** | Node.js | 20 LTS | Server-side runtime for API, scanner engine, and business logic |
 | **Backend Framework** | Express.js | 4.x | RESTful API routing, middleware, and request handling |
 | **Scanner Engine** | Node.js `tls`, `crypto`, `net` modules | Built-in | TLS handshake initiation, certificate parsing, cipher suite probing |
 | **PQC Support** | OpenSSL 3.2+ / OQS-Provider | Latest | Post-Quantum cipher suite negotiation and OID detection |
-| **PDF Generation** | PDFKit / Puppeteer | Latest | Generating printable CBOM reports and PQC-Ready digital labels |
+| **PDF Generation** | PDFKit / Puppeteer | Latest | Generating printable CBOM reports, executive reports, and PQC-Ready digital labels |
+| **Email Delivery** | Nodemailer / Gmail API | Latest | Sending scheduled reports to authorized Gmail recipients via SMTP with STARTTLS or OAuth 2.0 |
+| **AI Chatbot (RAG)** | LangChain.js / OpenAI API | Latest | Retrieval-Augmented Generation chatbot with vector knowledge base for PQC/cryptographic documentation |
+| **Vector Database** | MongoDB Atlas Vector Search | Latest | Storing and querying document embeddings for the RAG chatbot knowledge base |
 | **Authentication** | JSON Web Tokens (JWT) | Latest | Stateless user authentication and session management |
 | **Password Hashing** | bcrypt | Latest | Secure password storage with salted hashing |
 | **API Documentation** | Swagger / OpenAPI 3.0 | 3.0 | Auto-generated API documentation |
@@ -432,10 +514,13 @@ No specialized hardware (e.g., HSMs, custom NICs, cryptographic accelerators) is
 | Collection | Key Fields | Purpose |
 |---|---|---|
 | `users` | `_id`, `username`, `email`, `passwordHash`, `role`, `mfaEnabled`, `createdAt` | User account management |
-| `scans` | `_id`, `initiatedBy`, `targets[]`, `status`, `startedAt`, `completedAt`, `config` | Scan execution records |
-| `cbom_records` | `_id`, `scanId`, `endpoint`, `certificates[]`, `cipherSuites[]`, `tlsVersions[]`, `keyExchange`, `quantumSafetyLabel`, `recommendations[]` | Cryptographic Bill of Materials per endpoint |
-| `audit_logs` | `_id`, `userId`, `action`, `details`, `ipAddress`, `timestamp` | Audit trail for compliance |
+| `scans` | `_id`, `initiatedBy`, `targets[]`, `status`, `progress`, `summary`, `config`, `startedAt`, `completedAt`, `results[]` | Scan execution records with progress tracking and summary analytics |
+| `cbom_records` | `_id`, `scanId`, `endpoint`, `certificates[]`, `cipherSuites[]`, `tlsVersions[]`, `keyExchange`, `quantumSafetyLabel`, `recommendations[]`, `integrityHash`, `integrityPayload` | Cryptographic Bill of Materials per endpoint with tamper-proof integrity verification |
+| `audit_logs` | `_id`, `userId`, `username`, `action`, `details`, `ipAddress`, `timestamp` | Audit trail for compliance |
 | `labels` | `_id`, `cbomRecordId`, `labelType`, `issuedAt`, `validUntil`, `certificate` | Digital PQC-Ready labels/certificates |
+| `scheduled_scans` | `_id`, `name`, `targets[]`, `frequency`, `time`, `enabled`, `lastRun`, `nextRun`, `runCount`, `createdBy` | Recurring scan schedule configuration and execution tracking |
+| `report_schedules` | `_id`, `name`, `frequency`, `format`, `recipients[]`, `sections`, `enabled`, `lastGenerated`, `nextGeneration` | Scheduled email report configuration with authorized recipient list |
+| `chatbot_knowledge` | `_id`, `content`, `source`, `category`, `embedding[]`, `metadata` | Vector knowledge base documents for RAG chatbot (PQC standards, help content, crypto documentation) |
 
 ---
 
@@ -567,5 +652,14 @@ Access to information and computing facilities shall be controlled based on the 
 *End of Software Requirements Specification Document*
 
 **Document Prepared By:** \<Team Name\>  
-**Date:** 10th March 2026  
-**Version:** 1.0
+**Date:** 14th March 2026  
+**Version:** 2.0
+
+---
+
+## 6. Revision History
+
+| Version | Date | Author | Description |
+|---|---|---|---|
+| 1.0 | 10th March 2026 | \<Team Name\> | Initial SRS document with core scanning, CBOM generation, quantum-safety assessment, dashboard, reporting, and user management requirements. |
+| 2.0 | 14th March 2026 | \<Team Name\> | Major update — Added: Asset Inventory (Domains, SSL, IPs, Software), Cyber Rating (0–1000 enterprise scoring with tier classification), PQC Posture Dashboard (compliance grading, risk heatmap, recommendations), Advanced Reporting module (Schedule Reporting with email delivery to authorized Gmail recipients, On-Demand Reporting with bulk export, Executives Reporting with KPIs and strategic recommendations), RAG-based AI Chatbot Assistant, CBOM Integrity Verification (SHA-256 hashing), Scan Comparison, Scan Scheduling & Management. Updated system context diagram, product functions (PF-15 to PF-23), functional requirements (FR-26 to FR-39), system features (SF-06 to SF-09), user interfaces, software interfaces, technology stack, and database schema. |

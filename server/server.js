@@ -24,13 +24,25 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200,
+// Rate limiting — auth endpoints get a generous limit so login/me never fail
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,                      // 100 auth requests per 15 min (login, register, me)
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many auth requests, please try again later' }
+});
+// General API limiter — high enough for dashboard pages that fire many parallel calls
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 1000,                     // 1000 requests per 15 min per IP
+  standardHeaders: true,         // Return rate-limit info in `RateLimit-*` headers
+  legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' }
 });
-app.use('/api/', limiter);
+// Apply auth limiter ONLY to auth routes, general limiter to everything else
+app.use('/api/auth', authLimiter);
+app.use('/api/', apiLimiter);
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));

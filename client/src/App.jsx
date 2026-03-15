@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
-import { Shield, LayoutDashboard, Scan, FileText, LogOut, Settings, Clock, CalendarClock, Box } from 'lucide-react';
+import { Shield, LayoutDashboard, Scan, FileText, LogOut, Settings, Clock, CalendarClock, Box, ShieldCheck, Award, Crosshair } from 'lucide-react';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import ScanConfig from './pages/ScanConfig';
@@ -12,6 +12,9 @@ import AdminPanel from './pages/AdminPanel';
 import ScanHistory from './pages/ScanHistory';
 import AssetInventory from './pages/AssetInventory';
 import ScheduleManager from './pages/ScheduleManager';
+import CbomDashboard from './pages/CbomDashboard';
+import CyberRating from './pages/CyberRating';
+import PqcPosture from './pages/PqcPosture';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -50,6 +53,15 @@ function Sidebar() {
         </NavLink>
         <NavLink to="/asset-inventory" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
           <Box size={20} /> Asset Inventory
+        </NavLink>
+        <NavLink to="/cbom" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+          <ShieldCheck size={20} /> CBOM
+        </NavLink>
+        <NavLink to="/cyber-rating" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+          <Award size={20} /> Cyber Rating
+        </NavLink>
+        <NavLink to="/pqc-posture" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+          <Crosshair size={20} /> Posture of PQC
         </NavLink>
         <NavLink to="/reports" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
           <FileText size={20} /> Reports
@@ -101,6 +113,9 @@ export default function App() {
           <Route path="/scan" element={<ProtectedRoute><AppLayout><ScanConfig /></AppLayout></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><AppLayout><ScanHistory /></AppLayout></ProtectedRoute>} />
           <Route path="/asset-inventory" element={<ProtectedRoute><AppLayout><AssetInventory /></AppLayout></ProtectedRoute>} />
+          <Route path="/cbom" element={<ProtectedRoute><AppLayout><CbomDashboard /></AppLayout></ProtectedRoute>} />
+          <Route path="/cyber-rating" element={<ProtectedRoute><AppLayout><CyberRating /></AppLayout></ProtectedRoute>} />
+          <Route path="/pqc-posture" element={<ProtectedRoute><AppLayout><PqcPosture /></AppLayout></ProtectedRoute>} />
           <Route path="/results/:id" element={<ProtectedRoute><AppLayout><ScanResults /></AppLayout></ProtectedRoute>} />
           <Route path="/asset/:id" element={<ProtectedRoute><AppLayout><AssetDetail /></AppLayout></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><AppLayout><Reports /></AppLayout></ProtectedRoute>} />

@@ -44,7 +44,7 @@ async function getRecords(user) {
   const scanIds = await getUserScanIds(user);
   const data = await CbomRecord.find(
     { scanId: { $in: scanIds }, status: 'completed' },
-    'host port certificate scanId createdAt'
+    'host port certificate tlsVersions negotiatedCipher scanId createdAt'
   )
     .sort({ createdAt: -1 })
     .lean();
@@ -247,6 +247,46 @@ router.get('/ip', protect, async (req, res) => {
 
     setCache(cacheKey, ipEntries);
     res.json(ipEntries);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// @route   GET /api/asset-inventory/software
+router.get('/software', protect, async (req, res) => {
+  try {
+    const cacheKey = `software_${req.user._id}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
+    const records = await getRecords(req.user);
+
+    const softwareList = [];
+    for (const record of records) {
+      const cert = record.certificate || {};
+      const cipher = record.negotiatedCipher || {};
+
+      // TLS/SSL product entry
+      const tlsBest = record.tlsVersions?.bestVersion || null;
+      const cipherName = cipher.standardName || cipher.name || null;
+      const product = [tlsBest, cipherName].filter(Boolean).join(' / ') || record.host;
+
+      softwareList.push({
+        host: record.host,
+        detectionDate: record.createdAt,
+        product,
+        version: tlsBest || null,
+        type: cert.keyAlgorithm
+          ? `${cert.keyAlgorithm}${cert.keySize ? ` (${cert.keySize}-bit)` : ''}`
+          : 'TLS Endpoint',
+        port: record.port,
+        companyName: cert.subject || null,
+        scanId: record.scanId
+      });
+    }
+
+    setCache(cacheKey, softwareList);
+    res.json(softwareList);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

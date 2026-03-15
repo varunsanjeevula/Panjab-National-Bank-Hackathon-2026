@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { getReportsList, exportJSON, exportCSV, exportPDF } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { FileText, FileJson, FileSpreadsheet, FileDown, Calendar, Target, Shield, ShieldCheck, ShieldX, TrendingUp, Clock, Filter, Search, Download, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function OnDemandReporting() {
+  const { user } = useAuth();
+  const isViewer = user?.role === 'viewer';
   const [scans, setScans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -24,6 +27,9 @@ export default function OnDemandReporting() {
   };
 
   const handleExport = async (scanId, format) => {
+    if (isViewer) {
+      return toast.error('You don\'t have permission to export reports. Contact your admin for access.', { id: 'export' });
+    }
     try {
       setExporting(`${scanId}-${format}`);
       toast.loading(`Generating ${format.toUpperCase()} report...`, { id: 'export' });

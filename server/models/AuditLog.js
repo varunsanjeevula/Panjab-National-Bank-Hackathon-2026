@@ -5,7 +5,7 @@ const auditLogSchema = new mongoose.Schema({
   username: String,
   action: {
     type: String,
-    enum: ['LOGIN', 'LOGOUT', 'SCAN_INITIATED', 'SCAN_COMPLETED', 'REPORT_EXPORTED', 'USER_CREATED', 'CONFIG_CHANGED'],
+    enum: ['LOGIN', 'LOGOUT', 'SCAN_INITIATED', 'SCAN_COMPLETED', 'REPORT_EXPORTED', 'LABEL_DOWNLOADED', 'USER_CREATED', 'USER_UPDATED', 'USER_DELETED', 'CONFIG_CHANGED'],
     required: true
   },
   details: mongoose.Schema.Types.Mixed,

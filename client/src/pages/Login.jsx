@@ -2,21 +2,43 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { login, register } from '../services/api';
-import { Shield, Lock, User, Mail, ArrowRight } from 'lucide-react';
+import { Shield, Lock, User, Mail, ArrowRight, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+
+const PASSWORD_RULES = [
+  { key: 'minLength', label: 'At least 8 characters', test: (p) => p.length >= 8 },
+  { key: 'uppercase', label: 'One uppercase letter (A-Z)', test: (p) => /[A-Z]/.test(p) },
+  { key: 'lowercase', label: 'One lowercase letter (a-z)', test: (p) => /[a-z]/.test(p) },
+  { key: 'number', label: 'One number (0-9)', test: (p) => /\d/.test(p) },
+  { key: 'special', label: 'One special character (!@#$%...)', test: (p) => /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(p) },
+];
 
 export default function Login() {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { loginUser } = useAuth();
   const navigate = useNavigate();
 
+  const allRulesPassed = PASSWORD_RULES.every((r) => r.test(password));
+  const passwordsMatch = password === confirmPassword && confirmPassword.length > 0;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!isLogin) {
+      if (!allRulesPassed) {
+        toast.error('Password does not meet all requirements');
+        return;
+      }
+      if (!passwordsMatch) {
+        toast.error('Passwords do not match');
+        return;
+      }
+    }
     setLoading(true);
     try {
       const res = isLogin
@@ -30,6 +52,12 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const switchMode = () => {
+    setIsLogin(!isLogin);
+    setPassword('');
+    setConfirmPassword('');
   };
 
   return (
@@ -95,10 +123,81 @@ export default function Login() {
               value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
 
+          {/* Password Requirements Checklist — only shown during registration */}
+          <AnimatePresence>
+            {!isLogin && password.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.25 }}
+                style={{
+                  background: 'var(--bg-secondary, #f8f9fb)',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  marginBottom: 16,
+                  border: '1px solid var(--border-light, #e5e7eb)'
+                }}
+              >
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                  Password Requirements
+                </div>
+                {PASSWORD_RULES.map((rule) => {
+                  const passed = rule.test(password);
+                  return (
+                    <div key={rule.key} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0', fontSize: 12 }}>
+                      {passed
+                        ? <Check size={13} style={{ color: '#22c55e', flexShrink: 0 }} />
+                        : <X size={13} style={{ color: '#ef4444', flexShrink: 0 }} />
+                      }
+                      <span style={{ color: passed ? '#22c55e' : 'var(--text-muted)', transition: 'color 0.2s' }}>
+                        {rule.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Confirm Password — only shown during registration */}
+          <AnimatePresence>
+            {!isLogin && (
+              <motion.div className="form-group"
+                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                animate={{ opacity: 1, height: 'auto', marginBottom: 20 }}
+                exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                transition={{ duration: 0.25 }}
+              >
+                <label className="form-label">
+                  <Lock size={13} style={{ display: 'inline', marginRight: 5, verticalAlign: -1 }} />
+                  Confirm Password
+                </label>
+                <input className="form-input" type="password" placeholder="Re-enter password"
+                  value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required={!isLogin}
+                  style={confirmPassword.length > 0 ? {
+                    borderColor: passwordsMatch ? '#22c55e' : '#ef4444',
+                    boxShadow: `0 0 0 2px ${passwordsMatch ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}`
+                  } : {}}
+                />
+                {confirmPassword.length > 0 && !passwordsMatch && (
+                  <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <X size={12} /> Passwords do not match
+                  </div>
+                )}
+                {passwordsMatch && (
+                  <div style={{ fontSize: 11, color: '#22c55e', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Check size={12} /> Passwords match
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <motion.button
             type="submit" className="btn btn-primary btn-lg"
             style={{ width: '100%', marginTop: 4 }}
-            disabled={loading}
+            disabled={loading || (!isLogin && (!allRulesPassed || !passwordsMatch))}
             whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
           >
             {loading ? <div className="spinner spinner-white" /> : (
@@ -109,7 +208,7 @@ export default function Login() {
 
         <p style={{ textAlign: 'center', marginTop: 24, fontSize: 13, color: 'var(--text-muted)' }}>
           {isLogin ? "Don't have an account? " : 'Already have an account? '}
-          <span onClick={() => setIsLogin(!isLogin)}
+          <span onClick={switchMode}
             style={{ color: 'var(--brand-primary)', cursor: 'pointer', fontWeight: 600 }}>
             {isLogin ? 'Sign Up' : 'Sign In'}
           </span>

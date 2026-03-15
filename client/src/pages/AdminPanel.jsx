@@ -126,12 +126,16 @@ export default function AdminPanel() {
                     <Clock size={11} style={{ verticalAlign: -1 }} /> {new Date(user.createdAt).toLocaleDateString()}
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-sm btn-secondary" onClick={() => openEdit(user)} style={{ padding: '6px 10px' }}>
-                      <Edit size={13} />
-                    </button>
-                    <button className="btn btn-sm btn-danger" onClick={() => handleDelete(user._id, user.username)} style={{ padding: '6px 10px' }}>
-                      <Trash2 size={13} />
-                    </button>
+                    {user.role !== 'admin' && (
+                      <>
+                        <button className="btn btn-sm btn-secondary" onClick={() => openEdit(user)} style={{ padding: '6px 10px' }}>
+                          <Edit size={13} />
+                        </button>
+                        <button className="btn btn-sm btn-danger" onClick={() => handleDelete(user._id, user.username)} style={{ padding: '6px 10px' }}>
+                          <Trash2 size={13} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </motion.div>

@@ -1,5 +1,6 @@
 const express = require('express');
 const { protect } = require('../middleware/auth');
+const { authorize } = require('../middleware/rbac');
 const CbomRecord = require('../models/CbomRecord');
 const Scan = require('../models/Scan');
 const AuditLog = require('../models/AuditLog');
@@ -55,7 +56,7 @@ router.get('/list', protect, async (req, res) => {
 // @route   GET /api/reports/:scanId/json
 // @desc    Export CBOM as JSON
 // @access  Private
-router.get('/:scanId/json', protect, async (req, res) => {
+router.get('/:scanId/json', protect, authorize('admin', 'analyst'), async (req, res) => {
   try {
     const records = await CbomRecord.find({ scanId: req.params.scanId }).lean();
     if (!records.length) {
@@ -88,7 +89,7 @@ router.get('/:scanId/json', protect, async (req, res) => {
 // @route   GET /api/reports/:scanId/csv
 // @desc    Export CBOM as CSV  
 // @access  Private
-router.get('/:scanId/csv', protect, async (req, res) => {
+router.get('/:scanId/csv', protect, authorize('admin', 'analyst'), async (req, res) => {
   try {
     const records = await CbomRecord.find({ scanId: req.params.scanId, status: 'completed' }).lean();
     if (!records.length) {
@@ -145,7 +146,7 @@ router.get('/:scanId/csv', protect, async (req, res) => {
 // @route   GET /api/reports/:scanId/pdf
 // @desc    Export full CBOM report as PDF
 // @access  Private
-router.get('/:scanId/pdf', protect, async (req, res) => {
+router.get('/:scanId/pdf', protect, authorize('admin', 'analyst'), async (req, res) => {
   try {
     const scan = await Scan.findById(req.params.scanId).lean();
     if (!scan) return res.status(404).json({ error: 'Scan not found' });
@@ -172,7 +173,7 @@ router.get('/:scanId/pdf', protect, async (req, res) => {
 // @route   GET /api/reports/label/:cbomId
 // @desc    Download PQC digital label/certificate for an asset
 // @access  Private
-router.get('/label/:cbomId', protect, async (req, res) => {
+router.get('/label/:cbomId', protect, authorize('admin', 'analyst'), async (req, res) => {
   try {
     const record = await CbomRecord.findById(req.params.cbomId).lean();
     if (!record) return res.status(404).json({ error: 'Record not found' });

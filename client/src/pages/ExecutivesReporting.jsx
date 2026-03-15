@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { getReportsList, getCbomStats, getScans, getCbomRecords, exportPDF } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, LineChart, Line, CartesianGrid, Legend } from 'recharts';
 import { Briefcase, TrendingUp, ShieldCheck, ShieldX, AlertTriangle, Target, Download, FileDown, Crown, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
@@ -9,6 +10,8 @@ const TIER_COLORS = { 'Elite-PQC': '#059669', 'Standard': '#d97706', 'Legacy': '
 const LABEL_TO_GRADE = { 'Fully Quantum Safe': 'Elite-PQC', 'Hybrid Mode': 'Standard', 'Not PQC Ready': 'Legacy', 'Critical — Not PQC Ready': 'Critical' };
 
 export default function ExecutivesReporting() {
+  const { user } = useAuth();
+  const isViewer = user?.role === 'viewer';
   const [loading, setLoading] = useState(true);
   const [scans, setScans] = useState([]);
   const [cbomRecords, setCbomRecords] = useState([]);
@@ -110,6 +113,9 @@ export default function ExecutivesReporting() {
   }, [cbomRecords, scans]);
 
   const handleExportExecutive = async () => {
+    if (isViewer) {
+      return toast.error('You don\'t have permission to export reports. Contact your admin for access.', { id: 'exec-export' });
+    }
     const latestScan = scans.find(s => s.status === 'completed');
     if (!latestScan) return toast.error('No completed scan available for export');
     try {
@@ -123,7 +129,12 @@ export default function ExecutivesReporting() {
       a.click();
       window.URL.revokeObjectURL(url);
       toast.success('Executive report downloaded!', { id: 'exec-export' });
-    } catch { toast.error('Failed to generate executive report', { id: 'exec-export' }); }
+    } catch (err) {
+      const msg = err?.response?.status === 403
+        ? 'You don\'t have permission to export reports. Contact your admin for access.'
+        : 'Failed to generate executive report';
+      toast.error(msg, { id: 'exec-export' });
+    }
   };
 
   if (loading) return (

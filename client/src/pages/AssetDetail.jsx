@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getCbomRecord, downloadLabel } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { Shield, ShieldCheck, ShieldAlert, ShieldX, Lock, Key, FileText, ArrowLeft, Globe, Fingerprint, AlertTriangle, CheckCircle2, ExternalLink, Copy, Check, Terminal, Hash, Award, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -39,6 +40,8 @@ export default function AssetDetail() {
   const [record, setRecord] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showVerification, setShowVerification] = useState(false);
+  const { user } = useAuth();
+  const isViewer = user?.role === 'viewer';
 
   useEffect(() => {
     getCbomRecord(id).then(res => { setRecord(res.data); setLoading(false); }).catch(err => { console.error(err); setLoading(false); });
@@ -88,6 +91,9 @@ export default function AssetDetail() {
             <Shield size={14} /> {showVerification ? 'Hide' : 'Verify'} Proof
           </button>
           <button className="btn btn-secondary btn-sm" onClick={async () => {
+            if (isViewer) {
+              return toast.error('You don\'t have permission to download labels. Contact your admin for access.', { id: 'label' });
+            }
             try {
               toast.loading('Generating label...', { id: 'label' });
               const res = await downloadLabel(id);
@@ -97,7 +103,12 @@ export default function AssetDetail() {
               a.href = url; a.download = `pqc_label_${record.host}.pdf`; a.click();
               window.URL.revokeObjectURL(url);
               toast.success('Label downloaded!', { id: 'label' });
-            } catch { toast.error('Failed to download label', { id: 'label' }); }
+            } catch (err) {
+              const msg = err?.response?.status === 403
+                ? 'You don\'t have permission to download labels. Contact your admin for access.'
+                : 'Failed to download label';
+              toast.error(msg, { id: 'label' });
+            }
           }}>
             <Award size={14} /> PQC Label
           </button>

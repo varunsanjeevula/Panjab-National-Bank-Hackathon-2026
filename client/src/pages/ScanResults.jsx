@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getScan, exportJSON, exportCSV, exportPDF } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, ShieldCheck, ShieldAlert, ShieldX, FileJson, FileSpreadsheet, ExternalLink, CheckCircle, Clock, Globe, Filter, Search, FileDown } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -31,6 +32,8 @@ const LABEL_FILTERS = [
 export default function ScanResults() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isViewer = user?.role === 'viewer';
   const [scan, setScan] = useState(null);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +84,9 @@ export default function ScanResults() {
   }, [records]);
 
   const handleExport = async (type) => {
+    if (isViewer) {
+      return toast.error('You don\'t have permission to export reports. Contact your admin for access.', { id: 'export' });
+    }
     try {
       toast.loading(`Exporting ${type.toUpperCase()}...`, { id: 'export' });
       const res = type === 'json' ? await exportJSON(id) : type === 'csv' ? await exportCSV(id) : await exportPDF(id);
@@ -90,7 +96,12 @@ export default function ScanResults() {
       a.download = `cbom_${id}.${type === 'pdf' ? 'pdf' : type}`;
       a.click();
       toast.success(`${type.toUpperCase()} exported!`, { id: 'export' });
-    } catch { toast.error('Export failed', { id: 'export' }); }
+    } catch (err) {
+      const msg = err?.response?.status === 403
+        ? 'You don\'t have permission to export reports'
+        : 'Export failed';
+      toast.error(msg, { id: 'export' });
+    }
   };
 
   if (loading) return <div className="loading-container"><div className="spinner spinner-lg" /><p>Loading scan results...</p></div>;

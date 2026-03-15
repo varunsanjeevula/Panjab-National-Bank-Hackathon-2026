@@ -23,7 +23,7 @@ function setCache(key, data) {
 
 // ── Shared: get scan IDs visible to user ───────────────
 async function getUserScanIds(user) {
-  const filter = user.role === 'admin' ? {} : { initiatedBy: user._id };
+  const filter = (user.role === 'admin' || user.role === 'viewer') ? {} : { initiatedBy: user._id };
   const scans = await Scan.find(
     { ...filter, status: { $in: ['completed', 'partial'] } },
     '_id'

@@ -59,8 +59,9 @@ app.use('/api/asset-inventory', require('./routes/assetInventory'));
 
 // VPN Scan endpoint
 const { protect } = require('./middleware/auth');
+const { authorize } = require('./middleware/rbac');
 const { scanVPNEndpoints } = require('../scanner/vpnProbe');
-app.post('/api/vpn-scan', protect, async (req, res) => {
+app.post('/api/vpn-scan', protect, authorize('admin', 'analyst'), async (req, res) => {
   try {
     const { host } = req.body;
     if (!host) return res.status(400).json({ error: 'Host is required' });

@@ -197,4 +197,165 @@ router.get('/label/:cbomId', protect, authorize('admin', 'analyst'), async (req,
   }
 });
 
+// ═══════════════════════════════════════════════════════════
+// EMAIL DELIVERY ROUTES
+// ═══════════════════════════════════════════════════════════
+
+const { sendReportEmail, sendTestEmail, getTransporter } = require('../utils/emailService');
+
+// @route   GET /api/reports/email-status
+// @desc    Check if email service is configured
+// @access  Private
+router.get('/email-status', protect, (req, res) => {
+  const configured = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+  res.json({
+    configured,
+    emailUser: configured ? process.env.EMAIL_USER.replace(/(.{2})(.*)(@.*)/, '$1***$3') : null,
+  });
+});
+
+// @route   POST /api/reports/test-email
+// @desc    Send a test email to verify configuration
+// @access  Private (admin only)
+router.post('/test-email', protect, authorize('admin'), async (req, res) => {
+  try {
+    const { to } = req.body;
+    if (!to) return res.status(400).json({ error: 'Recipient email required' });
+
+    const info = await sendTestEmail(to);
+
+    await AuditLog.create({
+      userId: req.user._id, username: req.user.username,
+      action: 'TEST_EMAIL_SENT', details: { to, messageId: info.messageId },
+      ipAddress: req.ip
+    }).catch(() => {});
+
+    res.json({ success: true, message: `Test email sent to ${to}`, messageId: info.messageId });
+  } catch (err) {
+    console.error('[Email] Test email failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// @route   POST /api/reports/send-email
+// @desc    Send a report email with attachment to specified recipients
+// @access  Private (admin, analyst)
+router.post('/send-email', protect, authorize('admin', 'analyst'), async (req, res) => {
+  try {
+    const { recipients, reportName, format = 'PDF', scanId, frequency = 'on-demand' } = req.body;
+
+    if (!recipients || (Array.isArray(recipients) && recipients.length === 0)) {
+      return res.status(400).json({ error: 'At least one recipient email is required' });
+    }
+
+    // Find the scan — use provided scanId or latest completed scan
+    let targetScanId = scanId;
+    if (!targetScanId) {
+      const latestScan = await Scan.findOne({ status: 'completed' }).sort({ completedAt: -1 }).lean();
+      if (!latestScan) return res.status(404).json({ error: 'No completed scans found to report on' });
+      targetScanId = latestScan._id;
+    }
+
+    const scan = await Scan.findById(targetScanId).lean();
+    if (!scan) return res.status(404).json({ error: 'Scan not found' });
+
+    const records = await CbomRecord.find({ scanId: targetScanId, status: 'completed' }).lean();
+    if (!records.length) return res.status(404).json({ error: 'No completed records found for this scan' });
+
+    // Build summary stats
+    const pqcReady = records.filter(r => (r.quantumAssessment?.label || '').includes('Fully Quantum Safe')).length;
+    const hybrid = records.filter(r => (r.quantumAssessment?.label || '').includes('Hybrid')).length;
+    const vulnerable = records.length - pqcReady - hybrid;
+    const avgScore = Math.round(records.reduce((sum, r) => sum + (r.quantumAssessment?.score?.score || 0), 0) / records.length);
+
+    const summary = { totalAssets: records.length, pqcReady, hybrid, vulnerable, avgScore };
+
+    // Generate attachment
+    let attachment = null;
+    let attachmentName = `quantumshield_report_${targetScanId}`;
+
+    if (format === 'JSON') {
+      const jsonData = JSON.stringify({
+        cbomVersion: '1.0', generatedAt: new Date().toISOString(),
+        generatedBy: 'QuantumShield Scanner v1.0',
+        scanId: targetScanId, summary, records
+      }, null, 2);
+      attachment = Buffer.from(jsonData);
+      attachmentName += '.json';
+
+    } else if (format === 'CSV') {
+      const csvRows = records.map(r => ({
+        host: r.host, port: r.port,
+        tlsVersions: r.tlsVersions?.supported?.join('; ') || '',
+        certSubject: r.certificate?.commonName || '',
+        quantumLabel: r.quantumAssessment?.label || '',
+        quantumScore: r.quantumAssessment?.score?.score || '',
+      }));
+      const headers = Object.keys(csvRows[0]);
+      const csvContent = [
+        headers.join(','),
+        ...csvRows.map(row => headers.map(h => {
+          const val = String(row[h] || '');
+          return val.includes(',') ? `"${val}"` : val;
+        }).join(','))
+      ].join('\n');
+      attachment = Buffer.from(csvContent);
+      attachmentName += '.csv';
+
+    } else {
+      // PDF — generate into buffer
+      try {
+        attachment = await new Promise((resolve, reject) => {
+          const chunks = [];
+          const { generateCBOMReport } = require('../utils/pdfGenerator');
+          const stream = new (require('stream').PassThrough)();
+          stream.on('data', chunk => chunks.push(chunk));
+          stream.on('end', () => resolve(Buffer.concat(chunks)));
+          stream.on('error', reject);
+          generateCBOMReport(scan, records, stream);
+        });
+        attachmentName += '.pdf';
+      } catch (pdfErr) {
+        console.error('[Email] PDF generation failed, sending without attachment:', pdfErr.message);
+        // Send without attachment if PDF fails
+      }
+    }
+
+    // Parse recipients
+    const recipientList = Array.isArray(recipients)
+      ? recipients
+      : recipients.split(',').map(e => e.trim()).filter(Boolean);
+
+    const info = await sendReportEmail({
+      to: recipientList,
+      reportName: reportName || 'PQC Assessment Report',
+      frequency,
+      attachment,
+      attachmentName,
+      format,
+      summary,
+    });
+
+    // Audit log
+    await AuditLog.create({
+      userId: req.user._id, username: req.user.username,
+      action: 'REPORT_EMAILED',
+      details: { scanId: targetScanId, recipients: recipientList, format, messageId: info.messageId },
+      ipAddress: req.ip
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      message: `Report sent to ${recipientList.length} recipient(s)`,
+      recipients: recipientList,
+      messageId: info.messageId,
+    });
+
+  } catch (err) {
+    console.error('[Email] Send report failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
+

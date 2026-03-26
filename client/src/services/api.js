@@ -87,6 +87,14 @@ export const exportCSV = (scanId) =>
 export const exportPDF = (scanId) =>
   API.get(`/reports/${scanId}/pdf`, { responseType: 'blob' });
 
+// ── Email Delivery ──────────────────────────────────────
+export const sendReportEmail = (data) => API.post('/reports/send-email', data);
+export const testReportEmail = (to) => API.post('/reports/test-email', { to });
+export const getEmailStatus = () => API.get('/reports/email-status');
+
+// ── WHOIS Lookup ────────────────────────────────────────
+export const lookupWhois = (domain) => API.get(`/whois/${domain}`);
+
 export const downloadLabel = (cbomId) =>
   API.get(`/reports/label/${cbomId}`, { responseType: 'blob' });
 

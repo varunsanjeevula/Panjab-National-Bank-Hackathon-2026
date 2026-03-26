@@ -1,17 +1,175 @@
 import { useState, useEffect } from 'react';
-import { getSchedules, createSchedule, updateSchedule, deleteSchedule, getReportsList } from '../services/api';
+import { getSchedules, createSchedule, updateSchedule, deleteSchedule, getReportsList, sendReportEmail } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CalendarClock, Plus, Trash2, Calendar, Target, Clock, X, AlertCircle, FileText, Mail, Bell, ToggleLeft, ToggleRight, Edit3, Check } from 'lucide-react';
+import {
+  CalendarClock, Plus, Trash2, Calendar, Target, Clock, X, AlertCircle,
+  FileText, Mail, Bell, ToggleLeft, ToggleRight, Edit3, Check, Sparkles,
+  ChevronRight, Zap, Shield, BarChart3, TrendingUp, Play, Pause,
+  Download, Send, RefreshCw, Info
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const FREQUENCY_OPTIONS = [
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'monthly', label: 'Monthly' },
-  { value: 'quarterly', label: 'Quarterly' },
+  { value: 'daily', label: 'Daily', icon: <Clock size={14} />, desc: 'Every day at 6:00 AM' },
+  { value: 'weekly', label: 'Weekly', icon: <Calendar size={14} />, desc: 'Every Monday at 6:00 AM' },
+  { value: 'monthly', label: 'Monthly', icon: <CalendarClock size={14} />, desc: '1st of each month' },
+  { value: 'quarterly', label: 'Quarterly', icon: <TrendingUp size={14} />, desc: 'Every 3 months' },
 ];
 
-const FORMAT_OPTIONS = ['PDF', 'CSV', 'JSON'];
+const FORMAT_OPTIONS = [
+  { value: 'PDF', icon: <FileText size={14} />, color: '#ef4444' },
+  { value: 'CSV', icon: <BarChart3 size={14} />, color: '#059669' },
+  { value: 'JSON', icon: <span style={{ fontWeight: 700, fontSize: 10 }}>{'{}'}</span>, color: '#f59e0b' },
+];
+
+const SECTION_OPTIONS = [
+  { key: 'includeExecutiveSummary', label: 'Executive Summary', desc: 'High-level overview and KPIs', icon: <Sparkles size={16} /> },
+  { key: 'includeTechnicalDetails', label: 'Technical Details', desc: 'Cipher suites, TLS versions, certificates', icon: <Shield size={16} /> },
+  { key: 'includePqcPosture', label: 'PQC Posture Analysis', desc: 'Quantum readiness and migration status', icon: <Zap size={16} /> },
+  { key: 'includeCyberRating', label: 'Cyber Rating Report', desc: 'Security posture score and benchmarks', icon: <TrendingUp size={16} /> },
+];
+
+/* ── Styles ─────────────────────────────────────────────────── */
+const styles = {
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 },
+  statCard: {
+    display: 'flex', alignItems: 'center', gap: 14, padding: '18px 20px',
+    borderRadius: 14, background: 'var(--bg-primary)', border: '1px solid var(--border-light)',
+    transition: 'all 0.25s ease',
+  },
+  statIcon: (color) => ({
+    width: 44, height: 44, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: `linear-gradient(135deg, ${color}15, ${color}25)`, color,
+    boxShadow: `0 4px 12px ${color}15`,
+  }),
+  statValue: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 },
+  statLabel: { fontSize: 11, color: 'var(--text-muted)', fontWeight: 500, marginTop: 2, letterSpacing: 0.3 },
+  sectionHeader: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid var(--border-light)',
+  },
+  sectionTitle: { fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 },
+  sectionDesc: { fontSize: 12, color: 'var(--text-muted)', marginTop: 3 },
+  scheduleCard: (enabled) => ({
+    padding: '18px 22px', borderRadius: 14, background: 'var(--bg-primary)',
+    border: `1px solid ${enabled ? 'var(--border-light)' : 'var(--border-light)'}`,
+    opacity: enabled ? 1 : 0.6, transition: 'all 0.25s ease',
+    position: 'relative', overflow: 'hidden',
+  }),
+  scheduleAccent: (enabled) => ({
+    position: 'absolute', left: 0, top: 0, bottom: 0, width: 4,
+    background: enabled ? 'linear-gradient(180deg, #2563eb, #7c3aed)' : '#94a3b8',
+    borderRadius: '14px 0 0 14px',
+  }),
+  badge: (active) => ({
+    display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600,
+    padding: '3px 10px', borderRadius: 20, letterSpacing: 0.3,
+    background: active ? 'linear-gradient(135deg, #05966915, #05966925)' : '#94a3b810',
+    color: active ? '#059669' : '#94a3b8', textTransform: 'uppercase',
+  }),
+  metaTag: {
+    display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 500,
+    color: 'var(--text-muted)', padding: '3px 10px', borderRadius: 6,
+    background: 'var(--bg-secondary)', whiteSpace: 'nowrap',
+  },
+  actionBtn: (color = 'var(--text-muted)') => ({
+    width: 34, height: 34, borderRadius: 8, border: '1px solid var(--border-light)',
+    background: 'var(--bg-primary)', color, cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    transition: 'all 0.2s ease', fontSize: 0,
+  }),
+  /* Modal — all solid opaque colors for readability */
+  overlay: {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+  },
+  modal: {
+    width: 560, maxHeight: '92vh', overflow: 'auto', borderRadius: 20, padding: 0,
+    background: '#ffffff', border: '1px solid #e5e7eb',
+    boxShadow: '0 25px 60px rgba(0,0,0,0.3)',
+  },
+  modalHeader: {
+    padding: '24px 28px 18px', borderBottom: '1px solid #e5e7eb',
+    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+    background: '#ffffff',
+  },
+  modalTitle: { fontSize: 20, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 10 },
+  modalSubtitle: { fontSize: 12, color: '#6b7280', marginTop: 4 },
+  modalBody: { padding: '22px 28px', display: 'flex', flexDirection: 'column', gap: 22, background: '#ffffff' },
+  modalFooter: {
+    padding: '16px 28px 24px', display: 'flex', gap: 10,
+    borderTop: '1px solid #e5e7eb', background: '#f9fafb',
+  },
+  closeBtn: {
+    width: 32, height: 32, borderRadius: 8, border: '1px solid #d1d5db',
+    background: '#f3f4f6', cursor: 'pointer', color: '#6b7280',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
+  },
+  fieldLabel: {
+    fontSize: 12, fontWeight: 600, color: '#374151', letterSpacing: 0.4,
+    marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6,
+  },
+  inputStyled: {
+    width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500,
+    border: '1px solid #d1d5db', background: '#f9fafb',
+    color: '#111827', outline: 'none', transition: 'all 0.2s',
+    boxSizing: 'border-box',
+  },
+  freqPill: (active) => ({
+    flex: 1, padding: '10px 8px', borderRadius: 10, cursor: 'pointer',
+    background: active ? 'linear-gradient(135deg, #2563eb, #4f46e5)' : '#f3f4f6',
+    color: active ? '#fff' : '#4b5563', display: 'flex', flexDirection: 'column',
+    alignItems: 'center', gap: 4, fontSize: 12, fontWeight: active ? 600 : 500,
+    transition: 'all 0.25s ease', border: active ? '1px solid transparent' : '1px solid #d1d5db',
+    boxShadow: active ? '0 4px 14px rgba(37, 99, 235, 0.3)' : 'none',
+  }),
+  formatPill: (active, color) => ({
+    flex: 1, padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
+    border: active ? `2px solid ${color}` : '1px solid #d1d5db',
+    background: active ? `${color}12` : '#f9fafb',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    fontSize: 13, fontWeight: 600, color: active ? color : '#6b7280',
+    transition: 'all 0.2s ease',
+  }),
+  sectionToggle: (active) => ({
+    display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
+    borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s ease',
+    background: active ? '#eef2ff' : '#f9fafb',
+    border: `1px solid ${active ? '#818cf8' : '#e5e7eb'}`,
+  }),
+  toggleSwitch: (active) => ({
+    width: 40, height: 22, borderRadius: 11, padding: 2, cursor: 'pointer', flexShrink: 0,
+    background: active ? 'linear-gradient(135deg, #2563eb, #4f46e5)' : '#d1d5db',
+    display: 'flex', alignItems: 'center', transition: 'all 0.25s ease',
+    justifyContent: active ? 'flex-end' : 'flex-start',
+  }),
+  toggleKnob: {
+    width: 18, height: 18, borderRadius: '50%', background: '#fff',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+  },
+  infoCard: {
+    display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px',
+    borderRadius: 10, background: '#eef2ff',
+    border: '1px solid #c7d2fe', fontSize: 12, color: '#374151', lineHeight: 1.5,
+  },
+  submitBtn: (disabled) => ({
+    flex: 1, padding: '13px 20px', borderRadius: 12, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+    background: disabled ? '#d1d5db' : 'linear-gradient(135deg, #2563eb, #4f46e5)',
+    color: '#fff', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center',
+    justifyContent: 'center', gap: 8, transition: 'all 0.25s ease',
+    boxShadow: disabled ? 'none' : '0 4px 14px rgba(37, 99, 235, 0.3)',
+    opacity: disabled ? 0.6 : 1,
+  }),
+  cancelBtn: {
+    padding: '13px 24px', borderRadius: 12, border: '1px solid #d1d5db',
+    background: '#f3f4f6', color: '#374151', fontSize: 14, fontWeight: 500,
+    cursor: 'pointer', transition: 'all 0.15s',
+  },
+  emptyState: {
+    textAlign: 'center', padding: '60px 40px', borderRadius: 16,
+    background: 'var(--bg-primary)', border: '1px dashed var(--border-light)',
+  },
+};
 
 export default function ScheduleReporting() {
   const [reportSchedules, setReportSchedules] = useState([]);
@@ -19,6 +177,7 @@ export default function ScheduleReporting() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [sendingId, setSendingId] = useState(null);
   const [form, setForm] = useState({
     name: '',
     frequency: 'weekly',
@@ -30,23 +189,19 @@ export default function ScheduleReporting() {
     includeCyberRating: true,
   });
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
       const [schedRes, scanRes] = await Promise.allSettled([getSchedules(), getReportsList()]);
       if (schedRes.status === 'fulfilled') setReportSchedules(schedRes.value.data);
       if (scanRes.status === 'fulfilled') setScans(scanRes.value.data);
-    } catch { /* handled above */ }
+    } catch { /* handled */ }
     finally { setLoading(false); }
   };
 
-  // Derive report schedule entries from scan schedules (simulate scheduled reporting)
   const scheduleEntries = reportSchedules.map(s => ({
-    ...s,
-    reportName: `${s.name} — Auto Report`,
+    ...s, reportName: `${s.name} — Auto Report`,
     format: 'PDF',
     lastGenerated: s.lastRun ? new Date(s.lastRun) : null,
     nextGeneration: s.nextRun ? new Date(s.nextRun) : null,
@@ -57,134 +212,182 @@ export default function ScheduleReporting() {
     if (!form.name.trim()) return toast.error('Report name required');
     setSubmitting(true);
     try {
-      // Store as a schedule with reportConfig metadata
       await createSchedule({
         name: `[Report] ${form.name}`,
         targets: scans.slice(0, 1).flatMap(s => s.targets || [{ host: 'all-targets', port: 443 }]),
-        frequency: form.frequency,
-        time: '06:00',
+        frequency: form.frequency, time: '06:00',
       });
-      toast.success('Report schedule created');
+      toast.success('Report schedule created successfully!');
       setShowModal(false);
       setForm({ name: '', frequency: 'weekly', format: 'PDF', recipients: '', includeExecutiveSummary: true, includeTechnicalDetails: true, includePqcPosture: true, includeCyberRating: true });
       loadData();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to create report schedule');
-    } finally { setSubmitting(false); }
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed to create'); }
+    finally { setSubmitting(false); }
   };
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this report schedule?')) return;
-    try {
-      await deleteSchedule(id);
-      toast.success('Report schedule deleted');
-      loadData();
-    } catch { toast.error('Failed to delete'); }
+    try { await deleteSchedule(id); toast.success('Schedule deleted'); loadData(); }
+    catch { toast.error('Failed to delete'); }
   };
 
   const handleToggle = async (id, enabled) => {
     try {
       await updateSchedule(id, { enabled: !enabled });
-      toast.success(enabled ? 'Report schedule paused' : 'Report schedule enabled');
+      toast.success(enabled ? 'Schedule paused' : 'Schedule activated');
       loadData();
     } catch { toast.error('Failed to update'); }
+  };
+
+  const handleSendEmail = async (schedule) => {
+    const recipients = schedule.recipients || form.recipients;
+    if (!recipients) {
+      const email = prompt('Enter recipient email address(es), comma-separated:');
+      if (!email) return;
+      setSendingId(schedule._id);
+      try {
+        await sendReportEmail({
+          recipients: email,
+          reportName: schedule.reportName || schedule.name,
+          format: 'PDF',
+          frequency: schedule.frequency,
+        });
+        toast.success('Report emailed successfully!');
+      } catch (err) {
+        toast.error(err.response?.data?.error || 'Failed to send email');
+      } finally { setSendingId(null); }
+      return;
+    }
+    setSendingId(schedule._id);
+    try {
+      await sendReportEmail({
+        recipients,
+        reportName: schedule.reportName || schedule.name,
+        format: 'PDF',
+        frequency: schedule.frequency,
+      });
+      toast.success('Report emailed successfully!');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to send email');
+    } finally { setSendingId(null); }
   };
 
   const completedScans = scans.filter(s => s.status === 'completed').length;
 
   if (loading) return (
-    <div style={{ textAlign: 'center', padding: 60 }}>
-      <div className="spinner spinner-lg" style={{ marginBottom: 12 }} />
-      <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading scheduled reports...</p>
+    <div style={{ textAlign: 'center', padding: 80 }}>
+      <div className="spinner spinner-lg" style={{ marginBottom: 16 }} />
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, fontWeight: 500 }}>Loading scheduled reports...</p>
     </div>
   );
 
   return (
     <div>
-      {/* Summary Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+      {/* ── Stats Cards ───────────────────────────────────── */}
+      <div style={styles.statsGrid}>
         {[
-          { icon: <CalendarClock size={18} />, label: 'Active Schedules', value: scheduleEntries.filter(s => s.enabled).length, color: '#2563eb' },
-          { icon: <FileText size={18} />, label: 'Total Configured', value: scheduleEntries.length, color: '#8b5cf6' },
-          { icon: <Clock size={18} />, label: 'Reports Generated', value: scheduleEntries.reduce((sum, s) => sum + (s.runCount || 0), 0), color: '#059669' },
-          { icon: <Target size={18} />, label: 'Scans Available', value: completedScans, color: '#d97706' },
+          { icon: <CalendarClock size={20} />, label: 'Active Schedules', value: scheduleEntries.filter(s => s.enabled).length, color: '#2563eb' },
+          { icon: <FileText size={20} />, label: 'Total Configured', value: scheduleEntries.length, color: '#8b5cf6' },
+          { icon: <Download size={20} />, label: 'Reports Generated', value: scheduleEntries.reduce((sum, s) => sum + (s.runCount || 0), 0), color: '#059669' },
+          { icon: <Target size={20} />, label: 'Scans Available', value: completedScans, color: '#f59e0b' },
         ].map((stat, i) => (
-          <motion.div key={i} className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-            style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: `${stat.color}15`, color: stat.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {stat.icon}
-            </div>
+          <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.06, duration: 0.35 }} style={styles.statCard}>
+            <div style={styles.statIcon(stat.color)}>{stat.icon}</div>
             <div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>{stat.value}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{stat.label}</div>
+              <div style={styles.statValue}>{stat.value}</div>
+              <div style={styles.statLabel}>{stat.label}</div>
             </div>
           </motion.div>
         ))}
       </div>
 
-      {/* Header with Create Button */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      {/* ── Section Header ────────────────────────────────── */}
+      <div style={styles.sectionHeader}>
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Configured Report Schedules</h3>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 0' }}>Automated reports delivered on a recurring basis</p>
+          <div style={styles.sectionTitle}>
+            <CalendarClock size={18} style={{ color: '#2563eb' }} />
+            Configured Report Schedules
+          </div>
+          <div style={styles.sectionDesc}>Automated reports delivered on a recurring basis</div>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-          <Plus size={15} /> New Report Schedule
-        </button>
+        <motion.button className="btn btn-primary" onClick={() => setShowModal(true)}
+          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, fontWeight: 600, fontSize: 13 }}>
+          <Plus size={15} /> New Schedule
+        </motion.button>
       </div>
 
-      {/* Schedule List */}
+      {/* ── Schedule List ─────────────────────────────────── */}
       {scheduleEntries.length === 0 ? (
-        <motion.div className="card" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          style={{ textAlign: 'center', padding: 50 }}>
-          <CalendarClock size={44} style={{ color: 'var(--text-muted)', marginBottom: 12 }} />
-          <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>No report schedules yet</p>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>Set up automated reports to get periodic PQC assessments delivered automatically</p>
-          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={styles.emptyState}>
+          <div style={{ width: 64, height: 64, borderRadius: 16, background: 'linear-gradient(135deg, #2563eb10, #7c3aed10)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <CalendarClock size={28} style={{ color: '#2563eb' }} />
+          </div>
+          <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>No report schedules yet</p>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20, maxWidth: 360, margin: '0 auto 20px' }}>
+            Set up automated PQC assessment reports delivered periodically to stay on top of your quantum readiness.
+          </p>
+          <motion.button className="btn btn-primary" onClick={() => setShowModal(true)}
+            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+            style={{ padding: '11px 24px', borderRadius: 10, fontWeight: 600 }}>
             <Plus size={15} /> Create First Schedule
-          </button>
+          </motion.button>
         </motion.div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {scheduleEntries.map((s, idx) => (
-            <motion.div key={s._id} className="card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.03 }} style={{ padding: '14px 18px', opacity: s.enabled ? 1 : 0.55 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <motion.div key={s._id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: idx * 0.04 }} style={styles.scheduleCard(s.enabled)}>
+              <div style={styles.scheduleAccent(s.enabled)} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, paddingLeft: 8 }}>
+                {/* Icon */}
                 <div style={{
-                  width: 42, height: 42, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: s.enabled ? '#2563eb12' : '#94a3b812', color: s.enabled ? '#2563eb' : '#94a3b8'
+                  width: 46, height: 46, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: s.enabled ? 'linear-gradient(135deg, #2563eb10, #7c3aed10)' : '#94a3b808',
+                  color: s.enabled ? '#2563eb' : '#94a3b8', flexShrink: 0,
                 }}>
-                  <CalendarClock size={20} />
+                  <FileText size={22} />
                 </div>
 
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', marginBottom: 3 }}>
-                    {s.reportName || s.name}
-                    <span style={{
-                      fontSize: 10, fontWeight: 500, marginLeft: 8, padding: '2px 8px', borderRadius: 6,
-                      background: s.enabled ? '#05966915' : '#94a3b815',
-                      color: s.enabled ? '#059669' : '#94a3b8',
-                    }}>{s.enabled ? 'Active' : 'Paused'}</span>
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 180 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                    <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>
+                      {s.reportName || s.name}
+                    </span>
+                    <span style={styles.badge(s.enabled)}>
+                      {s.enabled ? <><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#059669', display: 'inline-block' }} /> Active</> : 'Paused'}
+                    </span>
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                    <span><Calendar size={11} style={{ verticalAlign: -1 }} /> {s.frequency}</span>
-                    <span><FileText size={11} style={{ verticalAlign: -1 }} /> PDF</span>
-                    <span><Target size={11} style={{ verticalAlign: -1 }} /> {s.targets?.length || 0} target(s)</span>
-                    {s.runCount > 0 && <span>{s.runCount} report(s) generated</span>}
-                    {s.lastGenerated && <span>Last: {s.lastGenerated.toLocaleDateString()}</span>}
-                    {s.nextGeneration && <span>Next: {s.nextGeneration.toLocaleDateString()}</span>}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={styles.metaTag}><Calendar size={11} /> {s.frequency}</span>
+                    <span style={styles.metaTag}><FileText size={11} /> PDF</span>
+                    <span style={styles.metaTag}><Target size={11} /> {s.targets?.length || 0} target{s.targets?.length !== 1 ? 's' : ''}</span>
+                    {s.runCount > 0 && <span style={styles.metaTag}><Download size={11} /> {s.runCount} generated</span>}
+                    {s.nextGeneration && <span style={styles.metaTag}><Clock size={11} /> Next: {s.nextGeneration.toLocaleDateString()}</span>}
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-secondary btn-sm" onClick={() => handleToggle(s._id, s.enabled)}
-                    title={s.enabled ? 'Pause' : 'Enable'} style={{ padding: '6px 10px' }}>
-                    {s.enabled ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
-                  </button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => handleDelete(s._id)}
-                    title="Delete" style={{ padding: '6px 10px', color: 'var(--color-danger)' }}>
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
+                    style={{ ...styles.actionBtn('#059669'), background: sendingId === s._id ? '#05966620' : 'var(--bg-primary)' }}
+                    onClick={() => handleSendEmail(s)} title="Send Report Email"
+                    disabled={sendingId === s._id}>
+                    {sendingId === s._id ? <RefreshCw size={14} className="spin" /> : <Send size={14} />}
+                  </motion.button>
+                  <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
+                    style={styles.actionBtn(s.enabled ? '#2563eb' : '#94a3b8')}
+                    onClick={() => handleToggle(s._id, s.enabled)} title={s.enabled ? 'Pause' : 'Activate'}>
+                    {s.enabled ? <Pause size={14} /> : <Play size={14} />}
+                  </motion.button>
+                  <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
+                    style={styles.actionBtn('#ef4444')}
+                    onClick={() => handleDelete(s._id)} title="Delete">
                     <Trash2 size={14} />
-                  </button>
+                  </motion.button>
                 </div>
               </div>
             </motion.div>
@@ -192,86 +395,138 @@ export default function ScheduleReporting() {
         </div>
       )}
 
-      {/* Create Modal */}
+      {/* ═══ CREATE MODAL ════════════════════════════════════ */}
       <AnimatePresence>
         {showModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-            onClick={() => setShowModal(false)}>
-            <motion.div className="card" initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
-              onClick={e => e.stopPropagation()} style={{ width: 520, maxHeight: '90vh', overflow: 'auto' }}>
-              <div className="card-header" style={{ marginBottom: 16 }}>
-                <div className="card-title">New Report Schedule</div>
-                <button className="btn btn-secondary btn-sm" onClick={() => setShowModal(false)}><X size={14} /></button>
+            style={styles.overlay} onClick={() => setShowModal(false)}>
+            <motion.div initial={{ scale: 0.90, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.90, opacity: 0, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onClick={e => e.stopPropagation()} style={styles.modal}>
+
+              {/* Header */}
+              <div style={styles.modalHeader}>
+                <div>
+                  <div style={styles.modalTitle}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: '#fff',
+                    }}>
+                      <CalendarClock size={18} />
+                    </div>
+                    New Report Schedule
+                  </div>
+                  <div style={styles.modalSubtitle}>Configure automated PQC assessment report delivery</div>
+                </div>
+                <button style={styles.closeBtn} onClick={() => setShowModal(false)}>
+                  <X size={16} />
+                </button>
               </div>
 
-              <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, display: 'block' }}>Report Name</label>
-                  <input className="input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                    placeholder="e.g., Weekly PQC Assessment" required />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <form onSubmit={handleCreate}>
+                <div style={styles.modalBody}>
+                  {/* Report Name */}
                   <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, display: 'block' }}>Frequency</label>
-                    <select className="input" value={form.frequency} onChange={e => setForm({ ...form, frequency: e.target.value })}>
-                      {FREQUENCY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
+                    <label style={styles.fieldLabel}><FileText size={13} /> Report Name</label>
+                    <input style={styles.inputStyled} value={form.name}
+                      onChange={e => setForm({ ...form, name: e.target.value })}
+                      placeholder="e.g., Weekly PQC Assessment Report" required
+                      onFocus={e => e.target.style.borderColor = '#2563eb'}
+                      onBlur={e => e.target.style.borderColor = '#d1d5db'} />
                   </div>
+
+                  {/* Frequency Pills */}
                   <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, display: 'block' }}>Format</label>
-                    <select className="input" value={form.format} onChange={e => setForm({ ...form, format: e.target.value })}>
-                      {FORMAT_OPTIONS.map(f => <option key={f} value={f}>{f}</option>)}
-                    </select>
+                    <label style={styles.fieldLabel}><Clock size={13} /> Frequency</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {FREQUENCY_OPTIONS.map(opt => (
+                        <motion.button key={opt.value} type="button"
+                          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                          style={styles.freqPill(form.frequency === opt.value)}
+                          onClick={() => setForm({ ...form, frequency: opt.value })}>
+                          {opt.icon}
+                          <span>{opt.label}</span>
+                        </motion.button>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 6, paddingLeft: 2 }}>
+                      {FREQUENCY_OPTIONS.find(o => o.value === form.frequency)?.desc}
+                    </div>
+                  </div>
+
+                  {/* Format Selection */}
+                  <div>
+                    <label style={styles.fieldLabel}><Download size={13} /> Export Format</label>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      {FORMAT_OPTIONS.map(opt => (
+                        <motion.button key={opt.value} type="button"
+                          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                          style={styles.formatPill(form.format === opt.value, opt.color)}
+                          onClick={() => setForm({ ...form, format: opt.value })}>
+                          {opt.icon}
+                          <span>{opt.value}</span>
+                          {form.format === opt.value && <Check size={14} />}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Recipients */}
+                  <div>
+                    <label style={styles.fieldLabel}><Mail size={13} /> Recipients <span style={{ fontWeight: 400, color: '#9ca3af' }}>(optional)</span></label>
+                    <input style={styles.inputStyled} value={form.recipients}
+                      onChange={e => setForm({ ...form, recipients: e.target.value })}
+                      placeholder="team@company.com, manager@company.com"
+                      onFocus={e => e.target.style.borderColor = '#2563eb'}
+                      onBlur={e => e.target.style.borderColor = '#d1d5db'} />
+                  </div>
+
+                  {/* Report Sections */}
+                  <div>
+                    <label style={styles.fieldLabel}><BarChart3 size={13} /> Report Sections</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {SECTION_OPTIONS.map(opt => (
+                        <motion.div key={opt.key} style={styles.sectionToggle(form[opt.key])}
+                          whileHover={{ scale: 1.005 }}
+                          onClick={() => setForm({ ...form, [opt.key]: !form[opt.key] })}>
+                          <div style={{
+                            width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: form[opt.key] ? '#eef2ff' : '#ffffff',
+                            color: form[opt.key] ? '#2563eb' : '#9ca3af', flexShrink: 0,
+                          }}>
+                            {opt.icon}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{opt.label}</div>
+                            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>{opt.desc}</div>
+                          </div>
+                          <div style={styles.toggleSwitch(form[opt.key])}>
+                            <motion.div style={styles.toggleKnob} layout transition={{ type: 'spring', stiffness: 500, damping: 30 }} />
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Info Banner */}
+                  <div style={styles.infoCard}>
+                    <Info size={16} style={{ color: '#2563eb', flexShrink: 0, marginTop: 1 }} />
+                    <span>Reports are auto-generated from the latest completed scan data at each scheduled interval. Ensure at least one scan is completed before scheduling.</span>
                   </div>
                 </div>
 
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, display: 'block' }}>Recipients (Email)</label>
-                  <input className="input" value={form.recipients} onChange={e => setForm({ ...form, recipients: e.target.value })}
-                    placeholder="comma-separated emails (optional)" />
+                {/* Footer */}
+                <div style={styles.modalFooter}>
+                  <button type="button" style={styles.cancelBtn} onClick={() => setShowModal(false)}>Cancel</button>
+                  <motion.button type="submit" disabled={submitting}
+                    whileHover={!submitting ? { scale: 1.01 } : {}}
+                    whileTap={!submitting ? { scale: 0.98 } : {}}
+                    style={styles.submitBtn(submitting)}>
+                    {submitting ? <><div className="spinner" /> Creating...</> : <><CalendarClock size={16} /> Create Report Schedule</>}
+                  </motion.button>
                 </div>
-
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, display: 'block' }}>Report Sections</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    {[
-                      { key: 'includeExecutiveSummary', label: 'Executive Summary' },
-                      { key: 'includeTechnicalDetails', label: 'Technical Details' },
-                      { key: 'includePqcPosture', label: 'PQC Posture' },
-                      { key: 'includeCyberRating', label: 'Cyber Rating' },
-                    ].map(opt => (
-                      <label key={opt.key} style={{
-                        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8,
-                        background: form[opt.key] ? '#2563eb08' : 'var(--bg-secondary)',
-                        border: `1px solid ${form[opt.key] ? '#2563eb30' : 'var(--border-light)'}`,
-                        cursor: 'pointer', fontSize: 13, color: 'var(--text-primary)', transition: 'all 0.15s',
-                      }}>
-                        <input type="checkbox" checked={form[opt.key]} onChange={e => setForm({ ...form, [opt.key]: e.target.checked })}
-                          style={{ display: 'none' }} />
-                        <div style={{
-                          width: 18, height: 18, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          background: form[opt.key] ? '#2563eb' : 'transparent',
-                          border: form[opt.key] ? 'none' : '2px solid var(--border-light)',
-                        }}>
-                          {form[opt.key] && <Check size={12} color="#fff" />}
-                        </div>
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="card" style={{ background: 'rgba(37, 99, 235, 0.04)', padding: '10px 14px', fontSize: 12, color: 'var(--text-secondary)' }}>
-                  <AlertCircle size={13} style={{ display: 'inline', verticalAlign: -2, marginRight: 4 }} />
-                  Reports will be auto-generated based on the latest completed scans at each scheduled interval.
-                </div>
-
-                <button className="btn btn-primary" type="submit" disabled={submitting} style={{ width: '100%' }}>
-                  {submitting ? <><div className="spinner" /> Creating...</> : <><CalendarClock size={14} /> Create Report Schedule</>}
-                </button>
               </form>
             </motion.div>
           </motion.div>

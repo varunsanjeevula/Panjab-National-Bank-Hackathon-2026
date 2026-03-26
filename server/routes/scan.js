@@ -207,7 +207,7 @@ async function runScanInBackground(scan, targets, user) {
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    const filter = (req.user.role === 'admin' || req.user.role === 'viewer') ? {} : { initiatedBy: req.user._id };
+    const filter = {}; // All authenticated users can view all scans
     const scans = await Scan.find(filter,
       'targets status progress summary createdAt completedAt initiatedBy'
     )

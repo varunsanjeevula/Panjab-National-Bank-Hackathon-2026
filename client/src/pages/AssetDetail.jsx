@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getCbomRecord, downloadLabel } from '../services/api';
+import { getCbomRecord, downloadLabel, lookupWhois } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { Shield, ShieldCheck, ShieldAlert, ShieldX, Lock, Key, FileText, ArrowLeft, Globe, Fingerprint, AlertTriangle, CheckCircle2, ExternalLink, Copy, Check, Terminal, Hash, Award, Download } from 'lucide-react';
+import { Shield, ShieldCheck, ShieldAlert, ShieldX, Lock, Key, FileText, ArrowLeft, Globe, Fingerprint, AlertTriangle, CheckCircle2, ExternalLink, Copy, Check, Terminal, Hash, Award, Download, Mail, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 function QuantumBadge({ label }) {
@@ -40,6 +40,7 @@ export default function AssetDetail() {
   const [record, setRecord] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showVerification, setShowVerification] = useState(false);
+  const [notifying, setNotifying] = useState(false);
   const { user } = useAuth();
   const isViewer = user?.role === 'viewer';
 
@@ -111,6 +112,94 @@ export default function AssetDetail() {
             }
           }}>
             <Award size={14} /> PQC Label
+          </button>
+          {/* ── Notify Domain Owner Button ── */}
+          <button className="btn btn-sm" disabled={notifying}
+            style={{ background: score >= 80 ? '#05966620' : '#dc262615', color: score >= 80 ? '#059669' : '#dc2626', border: `1px solid ${score >= 80 ? '#05966630' : '#dc262625'}`, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
+            onClick={async () => {
+              setNotifying(true);
+              try {
+                // 1. WHOIS lookup for domain owner email
+                toast.loading('Looking up domain owner...', { id: 'whois' });
+                const whoisRes = await lookupWhois(record.host);
+                const ownerEmails = whoisRes.data.emails || [];
+                const ownerEmail = ownerEmails[0] || `admin@${record.host}`;
+                toast.dismiss('whois');
+
+                // 2. Download the PDF label
+                toast.loading('Downloading PDF report...', { id: 'pdf-dl' });
+                try {
+                  const pdfRes = await downloadLabel(id);
+                  const blob = new Blob([pdfRes.data], { type: 'application/pdf' });
+                  const pdfUrl = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = pdfUrl; a.download = `pqc_report_${record.host}.pdf`; a.click();
+                  window.URL.revokeObjectURL(pdfUrl);
+                  toast.success('PDF downloaded! Attach it to the email.', { id: 'pdf-dl' });
+                } catch { toast.dismiss('pdf-dl'); }
+
+                // 3. Build subject & body
+                const isPQCReady = label.includes('Fully Quantum Safe');
+                const subject = isPQCReady
+                  ? `PQC Assessment: ${record.host} is Quantum-Ready (Score: ${score}/100)`
+                  : `⚠️ PQC Vulnerability Alert: ${record.host} is ${label} (Score: ${score}/100)`;
+
+                let body = `Dear Domain Administrator,\n\n`;
+                body += `This is an automated notification from QuantumShield Scanner regarding the post-quantum cryptographic (PQC) readiness of your domain.\n\n`;
+                body += `═══════════════════════════════════════\n`;
+                body += `DOMAIN: ${record.host}:${record.port}\n`;
+                body += `PQC STATUS: ${label}\n`;
+                body += `QUANTUM READINESS SCORE: ${score}/100\n`;
+                body += `═══════════════════════════════════════\n\n`;
+
+                // Deductions/Issues
+                const deductions = record.quantumAssessment?.score?.deductions || [];
+                if (deductions.length > 0) {
+                  body += `IDENTIFIED ISSUES:\n`;
+                  deductions.forEach(d => { body += `  ${d.includes('+') ? '✓' : '✗'} ${d}\n`; });
+                  body += `\n`;
+                }
+
+                // Certificate Info
+                if (cert.commonName) {
+                  body += `CERTIFICATE DETAILS:\n`;
+                  body += `  • Common Name: ${cert.commonName}\n`;
+                  body += `  • Issuer: ${cert.issuerOrg || cert.issuer || 'Unknown'}\n`;
+                  body += `  • Key Algorithm: ${cert.keyAlgorithm || 'Unknown'} (${cert.keySize || 0}-bit)\n`;
+                  body += `  • Signature: ${cert.signatureAlgorithm || 'Unknown'}\n`;
+                  body += `  • Valid Until: ${cert.validTo ? new Date(cert.validTo).toLocaleDateString() : 'Unknown'}\n\n`;
+                }
+
+                // Recommendations
+                if (recs.length > 0) {
+                  body += `RECOMMENDATIONS:\n`;
+                  recs.forEach((r, i) => {
+                    body += `\n${i + 1}. [${r.severity || 'Medium'}] ${r.component || r.title || 'Issue'}\n`;
+                    if (r.vulnerability || r.description) body += `   Problem: ${r.vulnerability || r.description}\n`;
+                    if (r.recommendation || r.action || r.mitigation) body += `   Fix: ${r.recommendation || r.action || r.mitigation}\n`;
+                    if (r.nistReference) body += `   Reference: ${r.nistReference}\n`;
+                  });
+                  body += `\n`;
+                }
+
+                body += `───────────────────────────────────────\n`;
+                body += `This report was generated by QuantumShield Scanner — PQC Readiness Assessment Platform.\n`;
+                body += `For the full PDF report, please see the attached file.\n`;
+                body += `\nPlease review and take necessary action to ensure quantum-safe cryptographic standards.\n`;
+                body += `\nBest regards,\nQuantumShield Scanning Team\n`;
+
+                // 4. Open Gmail compose
+                const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(ownerEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                window.open(gmailUrl, '_blank');
+
+                toast.success(`Gmail compose opened for ${ownerEmail}`, { duration: 5000 });
+              } catch (err) {
+                toast.error('Failed to prepare email: ' + (err.message || 'Unknown error'));
+              } finally {
+                setNotifying(false);
+              }
+            }}>
+            {notifying ? <><Loader2 size={14} className="spin" /> Looking up...</> : <><Mail size={14} /> Notify Owner</>}
           </button>
         </div>
       </motion.div>

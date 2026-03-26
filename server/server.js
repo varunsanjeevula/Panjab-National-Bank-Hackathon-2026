@@ -6,6 +6,7 @@ const dotenv = require('dotenv');
 const path = require('path');
 const connectDB = require('./config/db');
 const { initScheduler } = require('./utils/scheduler');
+const { initTelegramBot } = require('./utils/telegramBot');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 
@@ -56,6 +57,8 @@ app.use('/api/reports', require('./routes/reports'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/schedules', require('./routes/schedule'));
 app.use('/api/asset-inventory', require('./routes/assetInventory'));
+app.use('/api/chatbot', require('./routes/chatbot'));
+app.use('/api/gemini', require('./routes/gemini'));
 
 // VPN Scan endpoint
 const { protect } = require('./middleware/auth');
@@ -69,6 +72,74 @@ app.post('/api/vpn-scan', protect, authorize('admin', 'analyst'), async (req, re
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// WHOIS lookup — find domain owner email
+app.get('/api/whois/:domain', protect, async (req, res) => {
+  try {
+    const whois = require('whois-json');
+    const domain = req.params.domain.replace(/^(www\.)/i, '');
+    const result = await whois(domain);
+
+    // Extract emails from WHOIS data
+    const data = Array.isArray(result) ? result[0] : result;
+    let emails = [];
+
+    // Check common WHOIS fields for emails
+    const emailFields = [
+      'registrantEmail', 'adminEmail', 'techEmail', 'abuseContactEmail',
+      'contactEmail', 'email', 'registrant_email', 'admin_email', 'abuse_email'
+    ];
+
+    for (const field of emailFields) {
+      if (data[field] && typeof data[field] === 'string' && data[field].includes('@')) {
+        emails.push(data[field].trim().toLowerCase());
+      }
+    }
+
+    // Also scan all values for email patterns
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    const allText = JSON.stringify(data);
+    const foundEmails = allText.match(emailRegex) || [];
+    foundEmails.forEach(e => {
+      const lower = e.toLowerCase();
+      if (!emails.includes(lower) && !lower.includes('whois') && !lower.includes('example')) {
+        emails.push(lower);
+      }
+    });
+
+    // Deduplicate
+    emails = [...new Set(emails)];
+
+    // Fallback: common abuse/admin patterns
+    if (emails.length === 0) {
+      emails = [`abuse@${domain}`, `admin@${domain}`, `webmaster@${domain}`];
+    }
+
+    res.json({
+      domain,
+      emails,
+      registrant: data.registrantOrganization || data.registrantName || data.registrant || null,
+      registrar: data.registrar || null,
+      raw: {
+        registrantName: data.registrantName || null,
+        registrantOrg: data.registrantOrganization || null,
+        adminName: data.adminName || null,
+        techName: data.techName || null,
+      }
+    });
+  } catch (err) {
+    console.error('[WHOIS] Lookup failed:', err.message);
+    // Return fallback emails even on error
+    const domain = req.params.domain.replace(/^(www\.)/i, '');
+    res.json({
+      domain,
+      emails: [`abuse@${domain}`, `admin@${domain}`],
+      registrant: null,
+      registrar: null,
+      error: 'WHOIS lookup failed, using fallback emails',
+    });
   }
 });
 
@@ -119,6 +190,7 @@ if (!process.env.VERCEL) {
     console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`════════════════════════════════════════════════════\n`);
     initScheduler();
+    initTelegramBot();
   });
 }
 

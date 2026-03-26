@@ -21,6 +21,12 @@
   <em>Scans TLS endpoints, generates Cryptographic Bills of Materials (CBOM), and evaluates quantum-safety against NIST FIPS 203–206 standards.</em>
 </p>
 
+<p align="center">
+  <a href="https://panjab-national-bank-hackathon-2026.onrender.com" target="_blank">
+    <img src="https://img.shields.io/badge/🚀_Live_Demo-Check_it_out-2563eb?style=for-the-badge" alt="Live Demo" />
+  </a>
+</p>
+
 ---
 
 > **🔑 Demo Credentials**

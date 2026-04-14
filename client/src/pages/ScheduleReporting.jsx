@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getSchedules, createSchedule, updateSchedule, deleteSchedule, getReportsList, sendReportEmail } from '../services/api';
+import { getSchedules, createSchedule, updateSchedule, deleteSchedule, getReportsList, sendReportEmail, getEmailStatus } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CalendarClock, Plus, Trash2, Calendar, Target, Clock, X, AlertCircle,
@@ -178,6 +178,9 @@ export default function ScheduleReporting() {
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [sendingId, setSendingId] = useState(null);
+  const [emailProviders, setEmailProviders] = useState({ gmail: { configured: false }, outlook: { configured: false } });
+  const [emailPickerFor, setEmailPickerFor] = useState(null); // schedule obj or null
+  const [pickerRecipients, setPickerRecipients] = useState('');
   const [form, setForm] = useState({
     name: '',
     frequency: 'weekly',
@@ -193,9 +196,15 @@ export default function ScheduleReporting() {
 
   const loadData = async () => {
     try {
-      const [schedRes, scanRes] = await Promise.allSettled([getSchedules(), getReportsList()]);
+      const [schedRes, scanRes, emailRes] = await Promise.allSettled([getSchedules(), getReportsList(), getEmailStatus()]);
       if (schedRes.status === 'fulfilled') setReportSchedules(schedRes.value.data);
       if (scanRes.status === 'fulfilled') setScans(scanRes.value.data);
+      if (emailRes.status === 'fulfilled') {
+        setEmailProviders({
+          gmail: emailRes.value.data.gmail || { configured: false },
+          outlook: emailRes.value.data.outlook || { configured: false },
+        });
+      }
     } catch { /* handled */ }
     finally { setLoading(false); }
   };
@@ -216,6 +225,7 @@ export default function ScheduleReporting() {
         name: `[Report] ${form.name}`,
         targets: scans.slice(0, 1).flatMap(s => s.targets || [{ host: 'all-targets', port: 443 }]),
         frequency: form.frequency, time: '06:00',
+        recipients: form.recipients.trim(),
       });
       toast.success('Report schedule created successfully!');
       setShowModal(false);
@@ -239,37 +249,25 @@ export default function ScheduleReporting() {
     } catch { toast.error('Failed to update'); }
   };
 
-  const handleSendEmail = async (schedule) => {
-    const recipients = schedule.recipients || form.recipients;
-    if (!recipients) {
-      const email = prompt('Enter recipient email address(es), comma-separated:');
-      if (!email) return;
-      setSendingId(schedule._id);
-      try {
-        await sendReportEmail({
-          recipients: email,
-          reportName: schedule.reportName || schedule.name,
-          format: 'PDF',
-          frequency: schedule.frequency,
-        });
-        toast.success('Report emailed successfully!');
-      } catch (err) {
-        toast.error(err.response?.data?.error || 'Failed to send email');
-      } finally { setSendingId(null); }
+  const handleSendEmail = async (schedule, provider = 'gmail') => {
+    const recipients = pickerRecipients || schedule.recipients || form.recipients;
+    if (!recipients || !recipients.trim()) {
+      toast.error('Please enter at least one recipient email address');
       return;
     }
     setSendingId(schedule._id);
     try {
       await sendReportEmail({
-        recipients,
+        recipients: recipients.trim(),
         reportName: schedule.reportName || schedule.name,
         format: 'PDF',
         frequency: schedule.frequency,
+        provider,
       });
-      toast.success('Report emailed successfully!');
+      toast.success(`Report emailed via ${provider === 'outlook' ? 'Outlook' : 'Gmail'} successfully!`);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to send email');
-    } finally { setSendingId(null); }
+    } finally { setSendingId(null); setEmailPickerFor(null); setPickerRecipients(''); }
   };
 
   const completedScans = scans.filter(s => s.status === 'completed').length;
@@ -374,7 +372,7 @@ export default function ScheduleReporting() {
                 <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                   <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
                     style={{ ...styles.actionBtn('#059669'), background: sendingId === s._id ? '#05966620' : 'var(--bg-primary)' }}
-                    onClick={() => handleSendEmail(s)} title="Send Report Email"
+                    onClick={() => { setEmailPickerFor(s); setPickerRecipients(s.recipients || ''); }} title="Send Report Email"
                     disabled={sendingId === s._id}>
                     {sendingId === s._id ? <RefreshCw size={14} className="spin" /> : <Send size={14} />}
                   </motion.button>
@@ -395,6 +393,96 @@ export default function ScheduleReporting() {
         </div>
       )}
 
+      {/* ═══ EMAIL PROVIDER PICKER MODAL ══════════════════════ */}
+      {emailPickerFor && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}
+          onClick={() => { setEmailPickerFor(null); setPickerRecipients(''); }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ width: 400, borderRadius: 20, background: '#ffffff', border: '1px solid #e5e7eb',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.25)', overflow: 'hidden', position: 'relative', zIndex: 10000 }}>
+            {/* Header */}
+            <div style={{ padding: '22px 24px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: '#fff' }}>
+                  <Send size={16} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Send Report Email</div>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Enter recipients &amp; choose provider</div>
+                </div>
+              </div>
+              <button style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #d1d5db', background: '#f3f4f6',
+                cursor: 'pointer', color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                onClick={(e) => { e.stopPropagation(); setEmailPickerFor(null); setPickerRecipients(''); }}>
+                <X size={14} />
+              </button>
+            </div>
+            {/* Recipient Input */}
+            <div style={{ padding: '18px 24px 0' }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', letterSpacing: 0.3, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Mail size={13} /> Recipient Email(s)
+              </label>
+              <input
+                type="text"
+                value={pickerRecipients}
+                onChange={e => setPickerRecipients(e.target.value)}
+                placeholder="team@company.com, manager@company.com"
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500,
+                  border: '1px solid #d1d5db', background: '#f9fafb', color: '#111827', outline: 'none',
+                  transition: 'border-color 0.2s', boxSizing: 'border-box', marginTop: 6 }}
+                onFocus={e => e.target.style.borderColor = '#2563eb'}
+                onBlur={e => e.target.style.borderColor = '#d1d5db'}
+                autoFocus
+              />
+            </div>
+            {/* Provider Options */}
+            <div style={{ padding: '16px 24px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', letterSpacing: 0.3, marginBottom: 2 }}>Send via</div>
+              <button
+                disabled={!emailProviders.gmail.configured || !!sendingId}
+                onClick={(e) => { e.stopPropagation(); handleSendEmail(emailPickerFor, 'gmail'); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '14px 16px',
+                  borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', cursor: emailProviders.gmail.configured && !sendingId ? 'pointer' : 'not-allowed',
+                  opacity: emailProviders.gmail.configured ? 1 : 0.45, transition: 'all 0.2s', textAlign: 'left' }}>
+                <div style={{ width: 42, height: 42, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: '#EA43350a', flexShrink: 0 }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M22 6L12 13L2 6V4l10 7 10-7v2z" fill="#EA4335"/><path d="M2 6v12h4V10l6 4.5L18 10v8h4V6l-2-2H4L2 6z" fill="#EA4335"/><rect x="2" y="4" width="4" height="14" fill="#4285F4"/><rect x="18" y="4" width="4" height="14" fill="#34A853"/></svg>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>Gmail</div>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>
+                    {emailProviders.gmail.configured ? `Send via ${emailProviders.gmail.emailUser}` : 'Not configured'}
+                  </div>
+                </div>
+                {sendingId === emailPickerFor?._id && <RefreshCw size={14} className="spin" style={{ color: '#6b7280' }} />}
+              </button>
+
+              <button
+                disabled={!emailProviders.outlook.configured || !!sendingId}
+                onClick={(e) => { e.stopPropagation(); handleSendEmail(emailPickerFor, 'outlook'); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '14px 16px',
+                  borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', cursor: emailProviders.outlook.configured && !sendingId ? 'pointer' : 'not-allowed',
+                  opacity: emailProviders.outlook.configured ? 1 : 0.45, transition: 'all 0.2s', textAlign: 'left' }}>
+                <div style={{ width: 42, height: 42, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: '#0078D40a', flexShrink: 0 }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="1" y="4" width="13" height="16" rx="1.5" fill="#0078D4"/><path d="M7.5 8.5c-1.93 0-3.5 1.57-3.5 3.5s1.57 3.5 3.5 3.5S11 13.93 11 12 9.43 8.5 7.5 8.5zm0 5.5c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" fill="white"/><path d="M14 7l9-3v16l-9-3V7z" fill="#28A8EA"/></svg>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>Outlook</div>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>
+                    {emailProviders.outlook.configured ? `Send via ${emailProviders.outlook.emailUser}` : 'Not configured — add OUTLOOK_USER to .env'}
+                  </div>
+                </div>
+                {sendingId === emailPickerFor?._id && <RefreshCw size={14} className="spin" style={{ color: '#6b7280' }} />}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* ═══ CREATE MODAL ════════════════════════════════════ */}
       <AnimatePresence>
         {showModal && (

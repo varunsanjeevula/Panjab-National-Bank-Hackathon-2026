@@ -41,12 +41,38 @@ export default function AssetDetail() {
   const [loading, setLoading] = useState(true);
   const [showVerification, setShowVerification] = useState(false);
   const [notifying, setNotifying] = useState(false);
+  const [emailPickerData, setEmailPickerData] = useState(null);
   const { user } = useAuth();
   const isViewer = user?.role === 'viewer';
 
   useEffect(() => {
     getCbomRecord(id).then(res => { setRecord(res.data); setLoading(false); }).catch(err => { console.error(err); setLoading(false); });
   }, [id]);
+
+  // Close email picker on outside click
+  useEffect(() => {
+    if (!emailPickerData) return;
+    const handleClick = (e) => {
+      if (!e.target.closest('.email-picker-popup')) setEmailPickerData(null);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [emailPickerData]);
+
+  // Open compose in chosen provider
+  const openEmailProvider = (provider) => {
+    if (!emailPickerData) return;
+    const { ownerEmail, subject, body } = emailPickerData;
+    let url;
+    if (provider === 'gmail') {
+      url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(ownerEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    } else {
+      url = `https://outlook.live.com/mail/0/deeplink/compose?to=${encodeURIComponent(ownerEmail)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    }
+    window.open(url, '_blank');
+    toast.success(`${provider === 'gmail' ? 'Gmail' : 'Outlook'} compose opened for ${ownerEmail}`, { duration: 5000 });
+    setEmailPickerData(null);
+  };
 
   if (loading) return <div className="loading-container"><div className="spinner spinner-lg" /><p>Loading asset details...</p></div>;
   if (!record) return <div className="empty-state"><ShieldX size={44} /><p>Asset not found</p></div>;
@@ -87,7 +113,7 @@ export default function AssetDetail() {
             ))}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexDirection: 'column' }}>
+        <div style={{ display: 'flex', gap: 8, flexDirection: 'column', position: 'relative' }}>
           <button className="btn btn-primary btn-sm" onClick={() => setShowVerification(!showVerification)}>
             <Shield size={14} /> {showVerification ? 'Hide' : 'Verify'} Proof
           </button>
@@ -188,11 +214,9 @@ export default function AssetDetail() {
                 body += `\nPlease review and take necessary action to ensure quantum-safe cryptographic standards.\n`;
                 body += `\nBest regards,\nQuantumShield Scanning Team\n`;
 
-                // 4. Open Gmail compose
-                const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(ownerEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-                window.open(gmailUrl, '_blank');
-
-                toast.success(`Gmail compose opened for ${ownerEmail}`, { duration: 5000 });
+                // 4. Show email provider picker instead of opening Gmail directly
+                setEmailPickerData({ ownerEmail, subject, body });
+                toast.success('Choose your email provider below', { duration: 4000, icon: '📧' });
               } catch (err) {
                 toast.error('Failed to prepare email: ' + (err.message || 'Unknown error'));
               } finally {
@@ -201,6 +225,34 @@ export default function AssetDetail() {
             }}>
             {notifying ? <><Loader2 size={14} className="spin" /> Looking up...</> : <><Mail size={14} /> Notify Owner</>}
           </button>
+
+          {/* ── Email Provider Picker Popup ── */}
+          {emailPickerData && (
+            <div className="email-picker-popup">
+              <div className="email-picker-header">
+                <Mail size={16} style={{ color: 'var(--brand-primary)' }} />
+                <span>Choose Email Provider</span>
+                <button className="email-picker-close" onClick={() => setEmailPickerData(null)}>✕</button>
+              </div>
+              <p className="email-picker-to">To: <strong>{emailPickerData.ownerEmail}</strong></p>
+              <div className="email-picker-options">
+                <button className="email-picker-btn email-picker-gmail" onClick={() => openEmailProvider('gmail')}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22 6L12 13L2 6V4l10 7 10-7v2z" fill="#EA4335"/><path d="M2 6v12h4V10l6 4.5L18 10v8h4V6l-2-2H4L2 6z" fill="#EA4335"/><rect x="2" y="4" width="4" height="14" fill="#4285F4"/><rect x="18" y="4" width="4" height="14" fill="#34A853"/><path d="M2 18h4V10L2 6v12z" fill="#C5221F"/><path d="M18 18h4V6l-4 4v8z" fill="#0B8043"/></svg>
+                  <div>
+                    <div className="email-picker-btn-title">Gmail</div>
+                    <div className="email-picker-btn-desc">Open in Google Mail</div>
+                  </div>
+                </button>
+                <button className="email-picker-btn email-picker-outlook" onClick={() => openEmailProvider('outlook')}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="1" y="4" width="13" height="16" rx="1.5" fill="#0078D4"/><path d="M7.5 8.5c-1.93 0-3.5 1.57-3.5 3.5s1.57 3.5 3.5 3.5S11 13.93 11 12 9.43 8.5 7.5 8.5zm0 5.5c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" fill="white"/><path d="M14 7v10l9 3V4l-9 3z" fill="#0078D4" opacity="0.7"/><path d="M14 7l9-3v16l-9-3V7z" fill="#28A8EA"/></svg>
+                  <div>
+                    <div className="email-picker-btn-title">Outlook</div>
+                    <div className="email-picker-btn-desc">Open in Outlook Mail</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </motion.div>
 

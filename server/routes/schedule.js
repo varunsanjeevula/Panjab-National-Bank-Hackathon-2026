@@ -41,7 +41,7 @@ router.get('/', async (req, res) => {
 // @desc    Create a new scheduled scan
 router.post('/', async (req, res) => {
   try {
-    const { name, targets, frequency, time, config } = req.body;
+    const { name, targets, frequency, time, config, recipients } = req.body;
     if (!name || !targets || !targets.length) {
       return res.status(400).json({ error: 'Name and targets are required' });
     }
@@ -58,6 +58,7 @@ router.post('/', async (req, res) => {
       cronExpression,
       createdBy: req.user._id,
       nextRun: getNextRun(cronExpression),
+      recipients: recipients || '',
       config: config || {}
     });
 
@@ -72,7 +73,7 @@ router.post('/', async (req, res) => {
 // @desc    Update a scheduled scan
 router.put('/:id', async (req, res) => {
   try {
-    const { name, targets, frequency, time, enabled, config } = req.body;
+    const { name, targets, frequency, time, enabled, config, recipients } = req.body;
     const update = {};
     if (name) update.name = name;
     if (targets) update.targets = targets.map(t => ({ host: t.host || t, port: t.port || 443 }));
@@ -83,6 +84,7 @@ router.put('/:id', async (req, res) => {
     }
     if (typeof enabled === 'boolean') update.enabled = enabled;
     if (config) update.config = config;
+    if (typeof recipients === 'string') update.recipients = recipients;
 
     const schedule = await ScheduledScan.findByIdAndUpdate(req.params.id, update, { new: true });
     if (!schedule) return res.status(404).json({ error: 'Schedule not found' });

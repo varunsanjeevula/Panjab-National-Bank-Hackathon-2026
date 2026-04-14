@@ -201,16 +201,26 @@ router.get('/label/:cbomId', protect, authorize('admin', 'analyst'), async (req,
 // EMAIL DELIVERY ROUTES
 // ═══════════════════════════════════════════════════════════
 
-const { sendReportEmail, sendTestEmail, getTransporter } = require('../utils/emailService');
+const { sendReportEmail, sendTestEmail, getTransporter, getSenderEmail } = require('../utils/emailService');
 
 // @route   GET /api/reports/email-status
-// @desc    Check if email service is configured
+// @desc    Check if email service is configured (Gmail + Outlook)
 // @access  Private
 router.get('/email-status', protect, (req, res) => {
-  const configured = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+  const gmailConfigured = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+  const outlookConfigured = !!(process.env.OUTLOOK_USER && process.env.OUTLOOK_PASS);
   res.json({
-    configured,
-    emailUser: configured ? process.env.EMAIL_USER.replace(/(.{2})(.*)(@.*)/, '$1***$3') : null,
+    configured: gmailConfigured || outlookConfigured,
+    gmail: {
+      configured: gmailConfigured,
+      emailUser: gmailConfigured ? process.env.EMAIL_USER.replace(/(.{2})(.*)(@.*)/, '$1***$3') : null,
+    },
+    outlook: {
+      configured: outlookConfigured,
+      emailUser: outlookConfigured ? process.env.OUTLOOK_USER.replace(/(.{2})(.*)(@.*)/, '$1***$3') : null,
+    },
+    // Legacy support
+    emailUser: gmailConfigured ? process.env.EMAIL_USER.replace(/(.{2})(.*)(@.*)/, '$1***$3') : null,
   });
 });
 
@@ -219,18 +229,18 @@ router.get('/email-status', protect, (req, res) => {
 // @access  Private (admin only)
 router.post('/test-email', protect, authorize('admin'), async (req, res) => {
   try {
-    const { to } = req.body;
+    const { to, provider = 'gmail' } = req.body;
     if (!to) return res.status(400).json({ error: 'Recipient email required' });
 
-    const info = await sendTestEmail(to);
+    const info = await sendTestEmail(to, provider);
 
     await AuditLog.create({
       userId: req.user._id, username: req.user.username,
-      action: 'TEST_EMAIL_SENT', details: { to, messageId: info.messageId },
+      action: 'TEST_EMAIL_SENT', details: { to, provider, messageId: info.messageId },
       ipAddress: req.ip
     }).catch(() => {});
 
-    res.json({ success: true, message: `Test email sent to ${to}`, messageId: info.messageId });
+    res.json({ success: true, message: `Test email sent via ${provider === 'outlook' ? 'Outlook' : 'Gmail'} to ${to}`, messageId: info.messageId });
   } catch (err) {
     console.error('[Email] Test email failed:', err);
     res.status(500).json({ error: err.message });
@@ -242,7 +252,7 @@ router.post('/test-email', protect, authorize('admin'), async (req, res) => {
 // @access  Private (admin, analyst)
 router.post('/send-email', protect, authorize('admin', 'analyst'), async (req, res) => {
   try {
-    const { recipients, reportName, format = 'PDF', scanId, frequency = 'on-demand' } = req.body;
+    const { recipients, reportName, format = 'PDF', scanId, frequency = 'on-demand', provider = 'gmail' } = req.body;
 
     if (!recipients || (Array.isArray(recipients) && recipients.length === 0)) {
       return res.status(400).json({ error: 'At least one recipient email is required' });
@@ -334,13 +344,14 @@ router.post('/send-email', protect, authorize('admin', 'analyst'), async (req, r
       attachmentName,
       format,
       summary,
+      provider,
     });
 
     // Audit log
     await AuditLog.create({
       userId: req.user._id, username: req.user.username,
       action: 'REPORT_EMAILED',
-      details: { scanId: targetScanId, recipients: recipientList, format, messageId: info.messageId },
+      details: { scanId: targetScanId, recipients: recipientList, format, provider, messageId: info.messageId },
       ipAddress: req.ip
     }).catch(() => {});
 

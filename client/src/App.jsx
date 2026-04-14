@@ -1,8 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
-import { useState, useEffect } from 'react';
-import { Shield, LayoutDashboard, Scan, FileText, LogOut, Settings, Clock, CalendarClock, Box, ShieldCheck, Award, Crosshair, Moon, Sun, Map, ClipboardCheck, GitCompareArrows, Route as RouteIcon, ListChecks, ChevronDown, Sparkles, Search, Bell, HelpCircle, ChevronRight, MessageCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Shield, LayoutDashboard, Scan, FileText, LogOut, Settings, Clock, CalendarClock, Box, ShieldCheck, Award, Crosshair, Moon, Sun, Map, ClipboardCheck, GitCompareArrows, Route as RouteIcon, ListChecks, ChevronDown, Sparkles, Search, Bell, HelpCircle, ChevronRight, MessageCircle, Brain, Radio, Globe, Radar } from 'lucide-react';
 import Login from './pages/Login';
 import { ChatProvider, useChat } from './context/ChatContext';
 import ChatBot from './components/ChatBot';
@@ -23,6 +24,10 @@ import ComplianceMapping from './pages/ComplianceMapping';
 import ScanComparison from './pages/ScanComparison';
 import MigrationRoadmap from './pages/MigrationRoadmap';
 import RemediationTracker from './pages/RemediationTracker';
+import ThreatIntelligence from './pages/ThreatIntelligence';
+import NetworkTopology from './pages/NetworkTopology';
+import VulnerabilityNarrative from './pages/VulnerabilityNarrative';
+import PortScanner from './pages/PortScanner';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -66,7 +71,7 @@ function Sidebar() {
   const [dark, toggleTheme] = useTheme();
   const [additionalOpen, setAdditionalOpen] = useState(() => {
     const path = window.location.pathname;
-    return ['/risk-heatmap', '/compliance', '/compare', '/roadmap', '/remediation'].includes(path);
+    return ['/risk-heatmap', '/compliance', '/compare', '/roadmap', '/remediation', '/port-scanner'].includes(path);
   });
 
   // Keyboard shortcuts
@@ -152,6 +157,9 @@ function Sidebar() {
             <NavLink to="/remediation" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
               <ListChecks size={16} /> Remediation
             </NavLink>
+            <NavLink to="/port-scanner" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+              <Radar size={16} /> Port Scanner
+            </NavLink>
           </div>
         )}
 
@@ -205,6 +213,10 @@ const routeLabels = {
   '/compare': 'Compare Scans',
   '/roadmap': 'Migration Roadmap',
   '/remediation': 'Remediation Tracker',
+  '/ai/threat-feed': 'Threat Intelligence',
+  '/ai/topology': 'Network Topology',
+  '/ai/narrative': 'AI Vulnerability Narrative',
+  '/port-scanner': 'Port Scanner',
 };
 
 function TopHeader() {
@@ -227,6 +239,7 @@ function TopHeader() {
         </div>
       </div>
       <div className="top-header-right">
+        <AiFeaturesDropdown />
         <button className="header-icon-btn" title="Notifications">
           <Bell size={18} />
           <span className="badge-dot"></span>
@@ -255,6 +268,90 @@ function ChatHeaderButton() {
       <MessageCircle size={18} />
       <span className="badge-dot"></span>
     </button>
+  );
+}
+
+function AiFeaturesDropdown() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const features = [
+    { path: '/ai/threat-feed', label: 'Threat Intelligence', desc: 'Real-time quantum threat monitoring', icon: <Radio size={16} />, color: '#ef4444' },
+    { path: '/ai/topology', label: 'Network Topology', desc: 'Interactive asset visualization', icon: <Globe size={16} />, color: '#6366f1' },
+    { path: '/ai/narrative', label: 'Vulnerability Narrative', desc: 'AI-generated security briefing', icon: <Brain size={16} />, color: '#8b5cf6' },
+  ];
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <motion.button
+        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 10,
+          border: '1px solid', borderColor: open ? '#818cf8' : 'var(--border-light)',
+          background: open ? 'linear-gradient(135deg, #6366f110, #8b5cf610)' : 'var(--bg-primary)',
+          color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+          transition: 'all 0.2s',
+        }}>
+        <div style={{ width: 22, height: 22, borderRadius: 6, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Brain size={12} color="#fff" />
+        </div>
+        AI Features
+        <ChevronDown size={12} style={{ transform: open ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', color: 'var(--text-muted)' }} />
+      </motion.button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
+            transition={{ duration: 0.15 }}
+            style={{
+              position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 300,
+              borderRadius: 16, background: '#fff', border: '1px solid #e5e7eb',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.15)', zIndex: 100, overflow: 'hidden',
+            }}>
+            <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid #e5e7eb' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Sparkles size={14} style={{ color: '#8b5cf6' }} /> AI-Powered Features
+              </div>
+              <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Privacy-safe local intelligence engine</div>
+            </div>
+            <div style={{ padding: '8px' }}>
+              {features.map((f, i) => (
+                <motion.div key={f.path}
+                  whileHover={{ backgroundColor: '#f9fafb' }}
+                  onClick={() => { navigate(f.path); setOpen(false); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 12px', borderRadius: 10,
+                    cursor: 'pointer', color: 'inherit', transition: 'all 0.15s',
+                  }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${f.color}10`, color: f.color, flexShrink: 0 }}>
+                    {f.icon}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{f.label}</div>
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>{f.desc}</div>
+                  </div>
+                  <ChevronRight size={14} style={{ color: '#d1d5db' }} />
+                </motion.div>
+              ))}
+            </div>
+            <div style={{ padding: '10px 16px', background: '#f9fafb', borderTop: '1px solid #e5e7eb' }}>
+              <div style={{ fontSize: 10, color: '#9ca3af', textAlign: 'center' }}>✨ Cross-referenced with your live scan data</div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -304,6 +401,10 @@ export default function App() {
           <Route path="/compare" element={<ProtectedRoute><ChatProvider><AppLayout><ScanComparison /></AppLayout></ChatProvider></ProtectedRoute>} />
           <Route path="/roadmap" element={<ProtectedRoute><ChatProvider><AppLayout><MigrationRoadmap /></AppLayout></ChatProvider></ProtectedRoute>} />
           <Route path="/remediation" element={<ProtectedRoute><ChatProvider><AppLayout><RemediationTracker /></AppLayout></ChatProvider></ProtectedRoute>} />
+          <Route path="/port-scanner" element={<AnalystRoute><ChatProvider><AppLayout><PortScanner /></AppLayout></ChatProvider></AnalystRoute>} />
+          <Route path="/ai/threat-feed" element={<ProtectedRoute><ChatProvider><AppLayout><ThreatIntelligence /></AppLayout></ChatProvider></ProtectedRoute>} />
+          <Route path="/ai/topology" element={<ProtectedRoute><ChatProvider><AppLayout><NetworkTopology /></AppLayout></ChatProvider></ProtectedRoute>} />
+          <Route path="/ai/narrative" element={<ProtectedRoute><ChatProvider><AppLayout><VulnerabilityNarrative /></AppLayout></ChatProvider></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><ChatProvider><AppLayout><Reports /></AppLayout></ChatProvider></ProtectedRoute>} />
           <Route path="/schedules" element={<AnalystRoute><ChatProvider><AppLayout><ScheduleManager /></AppLayout></ChatProvider></AnalystRoute>} />
           <Route path="/admin" element={<AdminRoute><ChatProvider><AppLayout><AdminPanel /></AppLayout></ChatProvider></AdminRoute>} />

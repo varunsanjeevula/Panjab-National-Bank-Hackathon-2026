@@ -38,6 +38,10 @@ const scheduledScanSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  recipients: {
+    type: String,
+    default: ''
+  },
   config: {
     scanVpn: { type: Boolean, default: false }
   }

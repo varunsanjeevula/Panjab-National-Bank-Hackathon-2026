@@ -2,17 +2,22 @@ const nodemailer = require('nodemailer');
 
 /**
  * Email Service for QuantumShield Scanner
- * Uses Gmail SMTP with App Password authentication
+ * Supports Gmail and Outlook SMTP with App Password authentication
  *
  * Setup: Add these to your server/.env file:
+ *   # Gmail
  *   EMAIL_USER=your-email@gmail.com
  *   EMAIL_PASS=your-16-char-app-password
+ *   # Outlook (optional)
+ *   OUTLOOK_USER=your-email@outlook.com
+ *   OUTLOOK_PASS=your-outlook-app-password
  */
 
-let transporter = null;
+let gmailTransporter = null;
+let outlookTransporter = null;
 
-function getTransporter() {
-  if (transporter) return transporter;
+function getGmailTransporter() {
+  if (gmailTransporter) return gmailTransporter;
 
   const user = process.env.EMAIL_USER;
   const pass = process.env.EMAIL_PASS;
@@ -22,17 +27,59 @@ function getTransporter() {
     return null;
   }
 
-  transporter = nodemailer.createTransport({
+  gmailTransporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user, pass },
   });
 
-  // Verify connection on first use
-  transporter.verify()
-    .then(() => console.log('[Email] ✅ SMTP connection verified'))
-    .catch(err => console.error('[Email] ❌ SMTP verification failed:', err.message));
+  gmailTransporter.verify()
+    .then(() => console.log('[Email] ✅ Gmail SMTP connection verified'))
+    .catch(err => console.error('[Email] ❌ Gmail SMTP verification failed:', err.message));
 
-  return transporter;
+  return gmailTransporter;
+}
+
+function getOutlookTransporter() {
+  if (outlookTransporter) return outlookTransporter;
+
+  const user = process.env.OUTLOOK_USER;
+  const pass = process.env.OUTLOOK_PASS;
+
+  if (!user || !pass) {
+    console.warn('[Email] OUTLOOK_USER or OUTLOOK_PASS not configured in .env');
+    return null;
+  }
+
+  outlookTransporter = nodemailer.createTransport({
+    host: 'smtp-mail.outlook.com',
+    port: 587,
+    secure: false,
+    auth: { user, pass },
+    tls: { ciphers: 'SSLv3', rejectUnauthorized: false },
+  });
+
+  outlookTransporter.verify()
+    .then(() => console.log('[Email] ✅ Outlook SMTP connection verified'))
+    .catch(err => console.error('[Email] ❌ Outlook SMTP verification failed:', err.message));
+
+  return outlookTransporter;
+}
+
+/**
+ * Get the appropriate transporter based on provider
+ * @param {'gmail'|'outlook'} provider - defaults to 'gmail'
+ */
+function getTransporter(provider = 'gmail') {
+  if (provider === 'outlook') return getOutlookTransporter();
+  return getGmailTransporter();
+}
+
+/**
+ * Get the sender email based on provider
+ */
+function getSenderEmail(provider = 'gmail') {
+  if (provider === 'outlook') return process.env.OUTLOOK_USER;
+  return process.env.EMAIL_USER;
 }
 
 /**
@@ -45,13 +92,16 @@ function getTransporter() {
  * @param {string} [options.attachmentName] - filename for attachment
  * @param {string} [options.format] - PDF, CSV, or JSON
  * @param {Object} [options.summary] - scan summary data
+ * @param {'gmail'|'outlook'} [options.provider] - email provider, defaults to 'gmail'
  */
-async function sendReportEmail({ to, reportName, frequency, attachment, attachmentName, format = 'PDF', summary = {} }) {
-  const mailer = getTransporter();
+async function sendReportEmail({ to, reportName, frequency, attachment, attachmentName, format = 'PDF', summary = {}, provider = 'gmail' }) {
+  const mailer = getTransporter(provider);
   if (!mailer) {
-    throw new Error('Email not configured. Add EMAIL_USER and EMAIL_PASS to .env');
+    const envVars = provider === 'outlook' ? 'OUTLOOK_USER and OUTLOOK_PASS' : 'EMAIL_USER and EMAIL_PASS';
+    throw new Error(`${provider === 'outlook' ? 'Outlook' : 'Gmail'} email not configured. Add ${envVars} to .env`);
   }
 
+  const senderEmail = getSenderEmail(provider);
   const recipients = Array.isArray(to) ? to.join(', ') : to;
   const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -137,7 +187,7 @@ async function sendReportEmail({ to, reportName, frequency, attachment, attachme
   `;
 
   const mailOptions = {
-    from: `"QuantumShield Scanner" <${process.env.EMAIL_USER}>`,
+    from: `"QuantumShield Scanner" <${senderEmail}>`,
     to: recipients,
     subject: `📄 ${reportName} — ${now}`,
     html: htmlBody,
@@ -158,25 +208,32 @@ async function sendReportEmail({ to, reportName, frequency, attachment, attachme
   }
 
   const info = await mailer.sendMail(mailOptions);
-  console.log(`[Email] ✅ Report sent to ${recipients} — MessageId: ${info.messageId}`);
+  console.log(`[Email] ✅ Report sent via ${provider.toUpperCase()} to ${recipients} — MessageId: ${info.messageId}`);
   return info;
 }
 
 /**
  * Send a quick test email to verify configuration
+ * @param {string} to - recipient email
+ * @param {'gmail'|'outlook'} provider - email provider
  */
-async function sendTestEmail(to) {
-  const mailer = getTransporter();
-  if (!mailer) throw new Error('Email not configured');
+async function sendTestEmail(to, provider = 'gmail') {
+  const mailer = getTransporter(provider);
+  if (!mailer) {
+    const envVars = provider === 'outlook' ? 'OUTLOOK_USER and OUTLOOK_PASS' : 'EMAIL_USER and EMAIL_PASS';
+    throw new Error(`${provider === 'outlook' ? 'Outlook' : 'Gmail'} email not configured. Add ${envVars} to .env`);
+  }
+
+  const senderEmail = getSenderEmail(provider);
 
   const info = await mailer.sendMail({
-    from: `"QuantumShield Scanner" <${process.env.EMAIL_USER}>`,
+    from: `"QuantumShield Scanner" <${senderEmail}>`,
     to,
-    subject: '✅ QuantumShield Email Configuration Test',
+    subject: `✅ QuantumShield Email Configuration Test (${provider === 'outlook' ? 'Outlook' : 'Gmail'})`,
     html: `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
         <h2 style="color: #111827;">✅ Email Configuration Successful!</h2>
-        <p style="color: #6b7280;">Your QuantumShield Scanner email delivery is working correctly.</p>
+        <p style="color: #6b7280;">Your QuantumShield Scanner <strong>${provider === 'outlook' ? 'Outlook' : 'Gmail'}</strong> email delivery is working correctly.</p>
         <p style="color: #6b7280; font-size: 12px;">Sent at: ${new Date().toISOString()}</p>
       </div>
     `,
@@ -185,4 +242,4 @@ async function sendTestEmail(to) {
   return info;
 }
 
-module.exports = { sendReportEmail, sendTestEmail, getTransporter };
+module.exports = { sendReportEmail, sendTestEmail, getTransporter, getSenderEmail };

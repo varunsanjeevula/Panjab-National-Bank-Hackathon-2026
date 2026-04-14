@@ -58,7 +58,9 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/schedules', require('./routes/schedule'));
 app.use('/api/asset-inventory', require('./routes/assetInventory'));
 app.use('/api/chatbot', require('./routes/chatbot'));
-app.use('/api/gemini', require('./routes/gemini'));
+
+app.use('/api/ai-features', require('./routes/aiFeatures'));
+app.use('/api/port-scan', require('./routes/portScan'));
 
 // VPN Scan endpoint
 const { protect } = require('./middleware/auth');

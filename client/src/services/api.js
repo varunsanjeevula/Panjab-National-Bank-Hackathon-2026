@@ -126,3 +126,14 @@ export const getAssetSoftware = () => API.get('/asset-inventory/software');
 
 export default API;
 
+// ── AI Features ─────────────────────────────────────────
+export const getAiThreatFeed = () => API.get('/ai-features/threat-feed');
+export const getAiTopology = () => API.get('/ai-features/topology');
+export const getAiNarrative = (scanId) => API.post('/ai-features/narrative', { scanId });
+
+// ── Port Scanner & Vulnerability Assessment ─────────────
+export const startPortScan = (target, profile = 'standard', customPorts = []) =>
+  API.post('/port-scan', { target, profile, customPorts });
+export const getPortScans = () => API.get('/port-scan');
+export const getPortScan = (id) => API.get(`/port-scan/${id}`);
+
